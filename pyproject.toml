@@ -11,6 +11,7 @@ dependencies = [
     "evdev >= 1.7",
     "pyside6 >= 6.10.1",
     "pyyaml ~= 6.0",
+    "bleak >= 0.22.0",
 ]
 
 [project.optional-dependencies]
