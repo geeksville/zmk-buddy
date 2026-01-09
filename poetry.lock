@@ -800,4 +800,4 @@ dev = ["black", "mypy", "pylint", "types-pyyaml"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "17c677c823f63f0bdf237527dc5da8d6b8fc332aaa1b7decc06a79a94079b3e1"
+content-hash = "af4c62be61984ee6c0795e6b60e81271561d6fd1f1337328a1c627085736943c"

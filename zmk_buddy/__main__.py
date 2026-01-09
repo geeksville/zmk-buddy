@@ -18,7 +18,7 @@ def main() -> None:
     parser = ArgumentParser(
         description="ZMK Buddy - Live keymap visualization for ZMK keyboards"
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "-d", "--debug",
         action="store_true",
         help="Enable debug logging"

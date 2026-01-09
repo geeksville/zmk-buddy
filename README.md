@@ -7,7 +7,6 @@ A live keymap visualization tool for ZMK keyboards, built on top of [keymap-draw
 - Live visualization of keyboard key presses
 - Overlay display with configurable transparency
 - Support for ZMK keymap YAML files
-- Layer cycling (press 'y' to switch layers)
 - Global keyboard monitoring (requires appropriate permissions)
 
 ## Installation
@@ -52,4 +51,5 @@ Then log out and back in for the change to take effect.
 
 ## License
 
-MIT
+Copyright 2026 Kevin Hester, kevinh@geeksville.com
+GPL V3 [license](LICENSE)
