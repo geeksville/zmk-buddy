@@ -1,0 +1,58 @@
+[project]
+name = "zmk-buddy"
+version = "0.1.0"
+description = "A live keymap visualization tool for ZMK keyboards."
+authors = [{name = "Kevin Hester", email = "kevinh@geeksville.com"}]
+readme = "README.md"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "keymap-drawer",
+    "evdev >= 1.7",
+    "pyside6",
+    "pyyaml ~= 6.0",
+]
+
+[project.optional-dependencies]
+dev = ["mypy", "pylint", "black", "types-pyyaml"]
+
+[project.scripts]
+zmk-buddy = 'zmk_buddy.__main__:main'
+
+[project.urls]
+homepage = "https://github.com/geeksville/zmk-buddy"
+repository = "https://github.com/geeksville/zmk-buddy"
+issues = "https://github.com/geeksville/zmk-buddy/issues"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+requires-poetry = ">=2.0"
+
+[tool.pylint.master]
+extension-pkg-whitelist = "pydantic"
+
+[tool.pylint.basic]
+good-names = "x,y,w,h,r,f,k,v,p,m,c"
+max-line-length = 120
+
+[tool.pylint."messages control"]
+disable = ["too-few-public-methods", "line-too-long", "too-many-arguments", "too-many-positional-arguments"]
+
+[tool.mypy]
+plugins = "pydantic.mypy"
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+src_paths = ["zmk_buddy"]
+profile = "black"
+line_length = 120
+
+[dependency-groups]
+dev = [
+    "pyqt6-stubs (>=20250824,<20250825)"
+]
