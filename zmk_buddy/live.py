@@ -1,4 +1,5 @@
 import logging
+from math import log
 from evdev import InputEvent
 from evdev.device import InputDevice
 import sys
@@ -299,6 +300,7 @@ class SvgWidget(QWidget):
         """Update the held state of a key (applies to all matching keys)"""
         rects = self.find_key_rects(key_text)
         if not rects:
+            logger.warning(f"No image found for key: {key_text}")
             return
         
         # Update all matching rects
@@ -495,11 +497,11 @@ class KeymapWindow(QMainWindow):
             logger.info("Global keyboard monitoring starting - keys captured even when window not focused")
         else:
             logger.warning("Global monitoring unavailable - window must be focused to capture keys (YOU PROBABLY DON'T WANT THIS)")
-            logger.info("Install with: pipx install \"keymap[live]\"")
         
     def on_global_key_press(self, key_char: str) -> None:
         """Handle global key press from keyboard monitor"""
         # Show window and track this key as held
+        logger.debug(f"Key press: {key_char}")
         self.held_keys.add(key_char)
         self.show_window_temporarily()
         self.svg_widget.update_key_state(key_char, is_held=True)
