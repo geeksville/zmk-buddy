@@ -3,8 +3,11 @@
 misc unformatted notes - not yet useful...
 
 * test passing in my custom yaml
+* add layer detection due to bluetooth
+* show zmk bluetooth info in window
+* show zmk bluetooth info in system tray
 * take a short video
-
+* fix pypi publish
 
 
 ## keymap editor

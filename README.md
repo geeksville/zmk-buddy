@@ -63,8 +63,8 @@ ZMK Buddy supports global keyboard monitoring across all major platforms:
 | Platform | Backend | Notes |
 |----------|---------|-------|
 | **Linux** | evdev (preferred) | Requires user to be in `input` group |
-| **Windows** | pynput | Works out of the box |
-| **macOS** | pynput | May require Accessibility permissions in System Preferences |
+| **Windows** | pynput | 'should' work, but untested by me - let me know how it goes for you? |
+| **macOS** | pynput | May require Accessibility permissions in System Preferences (also untested) |
 
 ### Linux Permissions
 
