@@ -2,7 +2,8 @@
 
 misc unformatted notes - not yet useful...
 
-* allow passing in keyboard yaml
+* test passing in my custom yaml
+* take a short video
 
 
 

@@ -428,7 +428,7 @@ class SvgWidget(QWidget):
             learned_keys: Set of key labels that are considered learned
         """
         self.learned_keys = learned_keys
-        logger.debug(f"Updated learned keys: {learned_keys}")
+        # logger.debug(f"Updated learned keys: {learned_keys}")
     
     def _apply_dimming_to_tree(self) -> None:
         """Apply opacity dimming to learned keys in the SVG tree.
@@ -668,8 +668,10 @@ class KeymapWindow(QMainWindow):
             self.keyboard_monitor.stop()
         
         # Save learning statistics on clean exit
-        self.learning_tracker.save_stats()
+        path = self.learning_tracker.save_stats()
         logger.info(f"Saved learning progress: {self.learning_tracker.get_summary()}")
+        if path:
+            logger.info(f"Learning stats saved to: {path}")
         
         super().closeEvent(a0)
 

@@ -62,4 +62,10 @@ just keymap-use-dev
 
 Use this when you need to modify keymap-drawer alongside zmk-buddy development.
 
+# Implementation notes
+
+Statistics are stored in:
+- **Linux**: `~/.local/share/zmk-buddy/key_stats.json`
+- **macOS**: `~/Library/Application Support/zmk-buddy/key_stats.json`
+- **Windows**: `C:\Users\<user>\AppData\Local\zmk-buddy\key_stats.json`
 

@@ -104,22 +104,23 @@ class LearningTracker:
                 key: KeyStats.from_dict(value) 
                 for key, value in data.items()
             }
-            logger.info(f"Loaded key statistics for {xxlen(self._stats)} keys")
+            logger.info(f"Loaded key statistics for {len(self._stats)} keys")
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to load stats file: {e}")
             self._stats = {}
     
-    def save_stats(self) -> None:
+    def save_stats(self) -> Path | None:
         """Save statistics to JSON file."""
         if self._testing_mode:
             logger.info("Testing mode: skipping save of key statistics")
-            return
+            return None
         
         try:
             data = {key: stats.to_dict() for key, stats in self._stats.items()}
             with open(self._stats_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
             logger.debug(f"Saved key statistics to {self._stats_file}")
+            return self._stats_file
         except OSError as e:
             logger.warning(f"Failed to save stats file: {e}")
     
