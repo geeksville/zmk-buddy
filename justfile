@@ -6,8 +6,10 @@ default:
 
 # do static type checking with mypy
 lint:
+    poetry run black zmk_buddy
     poetry run mypy zmk_buddy
-    
+    poetry run pylint --disable=fixme zmk_buddy
+
 # Use pip to install the PyPI released version of keymap-drawer
 keymap-use-release:
     @echo "Switching to PyPI release version of keymap-drawer..."

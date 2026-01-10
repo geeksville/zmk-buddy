@@ -35,14 +35,33 @@ build-backend = "poetry.core.masonry.api"
 requires-poetry = ">=2.0"
 
 [tool.pylint.master]
-extension-pkg-whitelist = "pydantic"
+extension-pkg-whitelist = ["pydantic", "PySide6"]
 
 [tool.pylint.basic]
-good-names = "x,y,w,h,r,f,k,v,p,m,c"
+good-names = "x,y,w,h,r,f,k,v,p,m,c,a0"
 max-line-length = 120
 
 [tool.pylint."messages control"]
-disable = ["too-few-public-methods", "line-too-long", "too-many-arguments", "too-many-positional-arguments"]
+disable = [
+    "too-few-public-methods",
+    "line-too-long",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "too-many-instance-attributes",
+    "too-many-locals",
+    "too-many-branches",
+    "too-many-nested-blocks",
+    "no-name-in-module",
+    "import-outside-toplevel",
+    "logging-fstring-interpolation",
+    "broad-exception-caught",
+    "invalid-name",
+    "protected-access",
+    "inconsistent-return-statements",
+    "unused-argument",
+    "wrong-import-order",
+    "possibly-used-before-assignment",
+]
 
 [tool.mypy]
 plugins = "pydantic.mypy"

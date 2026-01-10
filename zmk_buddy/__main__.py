@@ -15,27 +15,20 @@ from zmk_buddy.live_preflight import has_pyqt6
 
 def main() -> None:
     """Entry point for zmk-buddy - launches the live keymap viewer."""
-    parser = ArgumentParser(
-        description="ZMK Buddy - Live keymap visualization for ZMK keyboards"
-    )
+    parser = ArgumentParser(description="ZMK Buddy - Live keymap visualization for ZMK keyboards")
+    _ = parser.add_argument("-d", "--debug", action="store_true", help="Enable debug logging")
     _ = parser.add_argument(
-        "-d", "--debug",
-        action="store_true",
-        help="Enable debug logging"
-    )
-    _ = parser.add_argument(
-        "-k", "--keymap",
+        "-k",
+        "--keymap",
         type=str,
         metavar="<filename.yaml>",
-        help=(
-            "Path to a custom keymap YAML file "
-            "(default: use built-in miryoku layout)"
-        )
+        help=("Path to a custom keymap YAML file " "(default: use built-in miryoku layout)"),
     )
     _ = parser.add_argument(
-        "-t", "--testing",
+        "-t",
+        "--testing",
         action="store_true",
-        help="Testing mode: don't save stats, initialize all keys as learned (100 correct, 0 incorrect)"
+        help="Testing mode: don't save stats, initialize all keys as learned (100 correct, 0 incorrect)",
     )
     args: Namespace = parser.parse_args()
 
