@@ -435,9 +435,11 @@ class KeymapWindow(QMainWindow):
         self.layer_names = list(yaml_data.get("layers", {}).keys())
         self.current_layer_index = 0
         
-        # Remove window border and frame, keep on top
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
-        
+        # Keep window on top
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
+        # Or this to hide title bar as well
+        # self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+
         # Enable transparent background for the window
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
