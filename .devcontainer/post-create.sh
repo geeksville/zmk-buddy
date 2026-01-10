@@ -26,14 +26,22 @@ mkdir -p ~/.zfunc
 poetry completions zsh > ~/.zfunc/_poetry
 
 # install git hooks
-# poetry run pre-commit install
+poetry run pre-commit install
 
 # just completions
-just --completions bash >> ~/.bash_completion
-just --completions zsh > ~/.zfunc/_just
+if command -v just &> /dev/null; then
+    just --completions bash >> ~/.bash_completion
+    mkdir -p ~/.zfunc
+    just --completions zsh > ~/.zfunc/_just
+fi
 
 # for zsh completions: Add to fpath and enable completions if not already present
 if ! grep -q "fpath+=~/.zfunc" ~/.zshrc; then
     echo 'fpath+=~/.zfunc' >> ~/.zshrc
     echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+fi
+
+if command -v atuin &> /dev/null; then
+    echo "Logging into Atuin (on first run you'll be prompted for your credentials)..."
+    atuin status || atuin login -u geeksville
 fi

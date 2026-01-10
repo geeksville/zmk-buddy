@@ -61,9 +61,17 @@
 		//"source=${localEnv:HOME}/Pictures/telescope,target=/workspaces/starbash/images,type=bind,consistency=cached",
 		//"source=/mnt/kshared,target=/mnt/kshared,type=bind,consistency=cached",
 		// This is necessary to prevent newer vscode created images from being able to write to /tmp
-		"type=tmpfs,destination=/tmp,tmpfs-mode=1777"
+		"type=tmpfs,destination=/tmp,tmpfs-mode=1777",
 		// My external USB drive
 		//"source=/mnt/fast_stick,destination=/mnt/fast_stick,type=bind"
+
+		// Atuin Identity: Read-only mount of your encryption key
+		"source=${localEnv:HOME}/.local/share/atuin/key,target=/home/vscode/.local/share/atuin/key,type=bind,consistency=cached,readonly",
+		// Atuin Config: Read-only mount of your config (contains username/server)
+		"source=${localEnv:HOME}/.config/atuin/config.toml,target=/home/vscode/.config/atuin/config.toml,type=bind,consistency=cached,readonly",
+		// AtuinPersistence: A Named Volume to store the session/db so it survives rebuilds
+		"source=atuin-session-${localWorkspaceFolderBasename},target=/home/vscode/.local/share/atuin,type=volume"
+
 	],
 	"containerEnv": {
 		// Needed for X11 forwarding
@@ -76,7 +84,9 @@
 		"DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock",
 		// Allow container runtime to now what the sub directory under /workspaces is
 		"PROJECT_NAME": "${localWorkspaceFolderBasename}",
-		"DEVCONTAINER_DIR": "/workspaces/${localWorkspaceFolderBasename}/.devcontainer" // FIXME - find a way to pass in the full devecontainer directory from vscode
+		"DEVCONTAINER_DIR": "/workspaces/${localWorkspaceFolderBasename}/.devcontainer", // FIXME - find a way to pass in the full devecontainer directory from vscode
+		"ATUIN_HOST_NAME": "dc_${localWorkspaceFolderBasename}" // unique atuin history per project
+	
 	},
 	"remoteUser": "vscode",
 	"postCreateCommand": "bash .devcontainer/post-create.sh",

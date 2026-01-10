@@ -46,6 +46,8 @@ RUN pipx install --pip-args=--no-cache-dir poetry
 # Let siril see /tmp
 #RUN flatpak --user override --filesystem=/tmp org.siril.Siril
 
+# Install Atuin
+RUN curl --proto '=https' --tlsv1.2 -sSf https://setup.atuin.sh | sh
 
 USER root
 
