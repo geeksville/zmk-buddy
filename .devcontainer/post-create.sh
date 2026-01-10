@@ -16,7 +16,7 @@ git config --global --add credential.'https://gist.github.com'.helper '!/usr/bin
 
 # Setup initial poetry venv (we store it in project so we can add the sb/starbash scripts to the path)
 # poetry config virtualenvs.in-project true --local
-poetry install || true  # allow failure if dependencies can't be installed right now
+poetry install -E dev || true  # allow failure if dependencies can't be installed right now
 
 # Setup poetry build env
 poetry completions bash >> ~/.bash_completion

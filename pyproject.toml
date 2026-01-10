@@ -57,5 +57,7 @@ line_length = 120
 
 [dependency-groups]
 dev = [
-    "pyqt6-stubs (>=20250824,<20250825)"
+    "mypy (>=1.0)",
+    "pyqt6-stubs (>=20250824,<20250825)",
+    "types-pynput (>=1.8.1.20250809,<2.0.0.0)"
 ]
