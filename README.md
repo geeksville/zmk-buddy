@@ -54,12 +54,21 @@ By default, zmk-buddy looks for a keymap file at `test/miryoku.yaml`.
 ## Requirements
 
 - Python 3.12+
-- Linux (uses evdev for global keyboard monitoring)
 - PySide6 for the GUI
 
-### Permissions
+### Platform Support
 
-For global keyboard monitoring to work, your user needs access to `/dev/input/event*` devices. Add your user to the `input` group:
+ZMK Buddy supports global keyboard monitoring across all major platforms:
+
+| Platform | Backend | Notes |
+|----------|---------|-------|
+| **Linux** | evdev (preferred) | Requires user to be in `input` group |
+| **Windows** | pynput | Works out of the box |
+| **macOS** | pynput | May require Accessibility permissions in System Preferences |
+
+### Linux Permissions
+
+For global keyboard monitoring on Linux, your user needs access to `/dev/input/event*` devices. Add your user to the `input` group:
 
 ```bash
 sudo usermod -aG input $USER

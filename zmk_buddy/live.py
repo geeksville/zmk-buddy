@@ -1,15 +1,13 @@
 import logging
-from math import log
-from evdev import InputEvent
-from evdev.device import InputDevice
+import platform
 import sys
 from argparse import Namespace
+from datetime import datetime
 from io import StringIO
 from pathlib import Path
-import xml.etree.ElementTree as ET
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Iterator, cast, override
-from datetime import datetime
+from typing import override
+import xml.etree.ElementTree as ET
 
 import yaml
 
@@ -37,15 +35,26 @@ SVG_SCALE = 0.75
 # Opacity for learned keys (0.0 = invisible, 1.0 = fully visible)
 LEARNED_KEY_OPACITY = 0.20
 
-# Try to import evdev for global keyboard monitoring
+# Detect platform
+CURRENT_PLATFORM = platform.system()  # 'Linux', 'Windows', 'Darwin' (macOS)
+
+# Try to import evdev for Linux global keyboard monitoring
+evdev_available = False
+if CURRENT_PLATFORM == 'Linux':
+    try:
+        import evdev
+        from evdev import InputDevice, categorize, ecodes
+        evdev_available = True
+    except ImportError:
+        pass
+
+# Try to import pynput for cross-platform keyboard monitoring
+pynput_available = False
 try:
-    import evdev
-    from evdev import InputDevice, categorize, ecodes
-    evdev_available = True
+    from pynput import keyboard as pynput_keyboard
+    pynput_available = True
 except ImportError:
-    evdev_available = False
-    if TYPE_CHECKING:
-        evdev = None  # type: ignore
+    pass
 
 # Map evdev key names to SVG labels
 EVDEV_KEY_MAP = {
@@ -61,10 +70,36 @@ EVDEV_KEY_MAP = {
     'tab': 'Tab',
     'enter': 'Enter',
     'space': 'Space',
-    'backspace': 'Bckspc            ',
+    'backspace': 'Bckspc',
     'delete': 'Delete',
     'esc': 'Esc',
     'escape': 'Esc',
+}
+
+# Map pynput special keys to SVG labels (for Windows/macOS)
+# These are pynput.keyboard.Key enum values
+PYNPUT_KEY_MAP: dict[str, str] = {
+    'shift': 'Shift',
+    'shift_l': 'Shift',
+    'shift_r': 'Shift',
+    'ctrl': 'Control',
+    'ctrl_l': 'Control',
+    'ctrl_r': 'Control',
+    'alt': 'Alt',
+    'alt_l': 'Alt',
+    'alt_r': 'AltGr',
+    'alt_gr': 'AltGr',
+    'cmd': 'Meta',
+    'cmd_l': 'Meta',
+    'cmd_r': 'Meta',
+    'caps_lock': 'Caps',
+    'tab': 'Tab',
+    'enter': 'Enter',
+    'return': 'Enter',
+    'space': 'Space',
+    'backspace': 'Bckspc',
+    'delete': 'Delete',
+    'esc': 'Esc',
 }
 
 # Map Qt key codes to SVG labels
@@ -88,7 +123,12 @@ QT_KEY_MAP = {
 
 
 class KeyboardMonitor(QObject):
-    """Monitor keyboard events using evdev in background thread"""
+    """Monitor keyboard events using platform-appropriate backend.
+    
+    On Linux: Uses evdev for direct access to input devices (preferred, more reliable)
+    On Windows/macOS: Uses pynput for global keyboard monitoring
+    Falls back to pynput on Linux if evdev is unavailable
+    """
     
     key_pressed: Signal = Signal(str)
     key_released: Signal = Signal(str)
@@ -97,9 +137,11 @@ class KeyboardMonitor(QObject):
         super().__init__()
         self.stop_flag: bool = False
         self.my_thread: Thread | None = None
+        self._pynput_listener: "pynput_keyboard.Listener | None" = None
+        self._backend: str = 'none'
     
-    def find_keyboard_device(self) -> "list[InputDevice[str]]":
-        """Find all keyboard devices from available input devices"""
+    def _find_keyboard_devices_evdev(self) -> list:
+        """Find all keyboard devices using evdev (Linux only)"""
         if not evdev_available:
             return []
         
@@ -109,7 +151,6 @@ class KeyboardMonitor(QObject):
             for device in devices:
                 # Look for a device with keyboard capabilities
                 caps = device.capabilities()
-                # print(f"Checking device: {device.name} with capabilities: {caps}")
                 if ecodes.EV_KEY in caps and any(
                     key in caps[ecodes.EV_KEY] 
                     for key in [ecodes.KEY_A, ecodes.KEY_B, ecodes.KEY_C]
@@ -122,17 +163,16 @@ class KeyboardMonitor(QObject):
         
         return keyboards
     
-    def start(self) -> bool:
-        """Start monitoring keyboard events in background thread"""
+    def _start_evdev(self) -> bool:
+        """Start monitoring using evdev (Linux)"""
+        import time
+        import select
         
         def event_loop():
             """Background thread that monitors keyboard events with auto-reconnect"""
-            import time
-            import select
-            
             while not self.stop_flag:
                 # Try to find all keyboard devices
-                devices: list[InputDevice[str]] = self.find_keyboard_device()
+                devices = self._find_keyboard_devices_evdev()
                 
                 if not devices:
                     # No keyboard found, wait 10 seconds and try again
@@ -148,7 +188,7 @@ class KeyboardMonitor(QObject):
                     
                     while not self.stop_flag:
                         # Use select to wait for events from any device
-                        r, w, x = select.select(fd_to_device.keys(), [], [], 1.0)
+                        r, _, _ = select.select(fd_to_device.keys(), [], [], 1.0)
                         
                         for fd in r:
                             device = fd_to_device[fd]
@@ -178,30 +218,95 @@ class KeyboardMonitor(QObject):
                                                     self.key_released.emit(key_char)
                             except (OSError, IOError) as e:
                                 logger.warning(f"Error reading from {device.name}: {e}")
-                                # Break out of select loop to reconnect
                                 raise
                 except Exception as e:
                     logger.warning(f"Keyboard(s) disconnected: {e}")
                 finally:
-                    # Close all devices
                     for device in devices:
                         try:
                             device.close()
                         except Exception:
-                            pass  # Device may already be closed
+                            pass
                 
-                # If we got here due to an error, wait a bit before reconnecting
                 if not self.stop_flag:
                     logger.info("Attempting to reconnect in 10 seconds...")
                     time.sleep(10)
         
         self.my_thread = Thread(target=event_loop, daemon=True)
         self.my_thread.start()
+        self._backend = 'evdev'
         return True
+    
+    def _pynput_key_to_char(self, key) -> str | None:
+        """Convert a pynput key to a character string for SVG lookup"""
+        try:
+            # Check if it's a regular character key
+            if hasattr(key, 'char') and key.char:
+                return key.char
+            
+            # It's a special key - get its name
+            if hasattr(key, 'name'):
+                key_name = key.name.lower()
+                return PYNPUT_KEY_MAP.get(key_name, key_name)
+            
+            # Try to get the key value as a string
+            key_str = str(key).replace('Key.', '').lower()
+            return PYNPUT_KEY_MAP.get(key_str, key_str)
+        except Exception:
+            return None
+    
+    def _start_pynput(self) -> bool:
+        """Start monitoring using pynput (Windows/macOS/Linux fallback)"""
+        if not pynput_available:
+            return False
+        
+        def on_press(key):
+            if self.stop_flag:
+                return False  # Stop listener
+            key_char = self._pynput_key_to_char(key)
+            if key_char and (len(key_char) == 1 or key_char in PYNPUT_KEY_MAP.values()):
+                self.key_pressed.emit(key_char)
+        
+        def on_release(key):
+            if self.stop_flag:
+                return False  # Stop listener
+            key_char = self._pynput_key_to_char(key)
+            if key_char and (len(key_char) == 1 or key_char in PYNPUT_KEY_MAP.values()):
+                self.key_released.emit(key_char)
+        
+        self._pynput_listener = pynput_keyboard.Listener(
+            on_press=on_press,
+            on_release=on_release
+        )
+        self._pynput_listener.start()
+        self._backend = 'pynput'
+        return True
+    
+    def start(self) -> bool:
+        """Start monitoring keyboard events using the best available backend"""
+        # On Linux, prefer evdev (more reliable, direct access)
+        if CURRENT_PLATFORM == 'Linux' and evdev_available:
+            if self._start_evdev():
+                logger.info("Using evdev backend for keyboard monitoring (Linux)")
+                return True
+        
+        # Fall back to pynput (works on Windows, macOS, and as Linux fallback)
+        if pynput_available:
+            if self._start_pynput():
+                logger.info(f"Using pynput backend for keyboard monitoring ({CURRENT_PLATFORM})")
+                return True
+        
+        logger.error("No keyboard monitoring backend available!")
+        return False
     
     def stop(self):
         """Stop monitoring keyboard events"""
         self.stop_flag = True
+        
+        if self._pynput_listener:
+            self._pynput_listener.stop()
+            self._pynput_listener = None
+        
         if self.my_thread:
             self.my_thread.join(timeout=1.0)
 

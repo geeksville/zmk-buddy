@@ -8,7 +8,8 @@ license = "GPL-3.0-or-later"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "keymap-drawer >= 0.22.1",
-    "evdev >= 1.7",
+    "evdev >= 1.7; sys_platform == 'linux'",
+    "pynput >= 1.7",
     "pyside6 >= 6.10.1",
     "pyyaml ~= 6.0",
     "bleak >= 0.22.0",
