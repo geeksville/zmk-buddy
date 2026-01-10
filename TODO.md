@@ -2,6 +2,9 @@
 
 misc unformatted notes - not yet useful...
 
+* allow passing in keyboard yaml
+
+
 
 ## keymap editor
 

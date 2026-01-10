@@ -23,6 +23,15 @@ def main() -> None:
         action="store_true",
         help="Enable debug logging"
     )
+    _ = parser.add_argument(
+        "-k", "--keymap",
+        type=str,
+        metavar="<filename.yaml>",
+        help=(
+            "Path to a custom keymap YAML file "
+            "(default: use built-in miryoku layout)"
+        )
+    )
     args: Namespace = parser.parse_args()
 
     # Set log level based on debug flag

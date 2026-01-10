@@ -658,25 +658,22 @@ def live(args: Namespace, config: Config) -> None:  # pylint: disable=unused-arg
     # Create a new Config with the modified draw_config
     config = config.model_copy(update={"draw_config": custom_draw_config})
     
-    # Path to the YAML keymap file - look in package directory, then current directory
-    package_dir = Path(__file__).parent.parent
-    yaml_path = package_dir / "test" / "miryoku.yaml"
-    
-    if not yaml_path.exists():
-        # Fall back to current directory
-        yaml_path = Path("test/miryoku.yaml")
-    
-    # Check if the file exists
-    if not yaml_path.exists():
-        logger.error(f"Keymap YAML file not found at {yaml_path}")
-        logger.error(f"Tried package directory: {package_dir / 'test' / 'miryoku.yaml'}")
-        sys.exit(1)
-    
-    logger.info(f"Loading keymap from: {Path(yaml_path).absolute()}")
-    
-    # Load the YAML file
-    with open(yaml_path, 'r', encoding='utf-8') as f:
-        yaml_data = yaml.safe_load(f)
+    # Load keymap data
+    if hasattr(args, 'keymap') and args.keymap:
+        # Load custom keymap from file path
+        yaml_path = Path(args.keymap)
+        if not yaml_path.exists():
+            logger.error(f"Keymap YAML file not found at {yaml_path}")
+            sys.exit(1)
+        
+        logger.info(f"Loading custom keymap from: {yaml_path.absolute()}")
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            yaml_data = yaml.safe_load(f)
+    else:
+        # Load default keymap from package resources
+        from zmk_buddy.data.keymaps import load_default_keymap
+        logger.info("Loading default keymap (miryoku)")
+        yaml_data = load_default_keymap()
     
     # Create the Qt application
     app = QApplication(sys.argv)
