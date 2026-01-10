@@ -1,0 +1,35 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ZMK Buddy: Run with Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "zmk_buddy",
+            "args": [
+                "--debug"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "ZMK Buddy: Run with Keymap",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "zmk_buddy",
+            "args": [
+                "--debug",
+                "--keymap",
+                "${workspaceFolder}/zmk_buddy/data/keymaps/miryoku.yaml"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}

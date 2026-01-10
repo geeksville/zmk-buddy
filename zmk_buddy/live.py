@@ -9,6 +9,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 from threading import Thread
 from typing import TYPE_CHECKING, Any, Iterator, cast, override
+from datetime import datetime
 
 import yaml
 
@@ -353,6 +354,33 @@ class SvgWidget(QWidget):
                     tap_elem.set('opacity', '1')
                     shifted_elem.set('opacity', '0')
     
+    def _log_svg(self, svg_content: str) -> None:
+        """Save SVG to debug directory if logging level is DEBUG.
+        
+        Keeps only the last 4 SVG files in /tmp/buddy_svg/
+        """
+        if not logger.isEnabledFor(logging.DEBUG):
+            return
+        
+        # Create directory if it doesn't exist
+        debug_dir = Path('/tmp/buddy_svg')
+        debug_dir.mkdir(exist_ok=True)
+        
+        # Generate timestamp-based filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        svg_path = debug_dir / f"{timestamp}.svg"
+        
+        # Write SVG content
+        svg_path.write_text(svg_content, encoding='utf-8')
+        logger.debug(f"Saved SVG to {svg_path}")
+        
+        # Clean up old files, keeping only the last 4
+        svg_files = sorted(debug_dir.glob('*.svg'))
+        if len(svg_files) > 4:
+            for old_file in svg_files[:-4]:
+                old_file.unlink()
+                # logger.debug(f"Removed old SVG file: {old_file}")
+    
     def _reload_svg(self) -> None:
         """Reload the SVG renderer from the modified tree and trigger repaint"""
         # Register namespace before converting to string
@@ -361,7 +389,11 @@ class SvgWidget(QWidget):
         
         # Reload the SVG from the modified tree
         svg_bytes = ET.tostring(self.svg_root, encoding='unicode')
-        self.renderer.load(svg_bytes.encode('utf-8'))
+        
+        # Log SVG for debugging if enabled
+        self._log_svg(svg_bytes)
+        
+        _ = self.renderer.load(svg_bytes.encode('utf-8'))
         
         # Trigger repaint
         self.update()
@@ -659,7 +691,7 @@ def live(args: Namespace, config: Config) -> None:  # pylint: disable=unused-arg
     # Customize layer label styling by creating a new DrawConfig with modified svg_extra_style
     custom_draw_config = config.draw_config.model_copy(
         update={
-            "dark_mode": "auto",
+            # "dark_mode": "auto", # Doesn't work
             "svg_extra_style": """
                 /* Override layer label styling for better visibility */
                 text.label {
