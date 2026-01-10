@@ -5,7 +5,9 @@ Uses keymap-drawer for rendering keymaps.
 
 import logging
 import sys
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, FileType, Namespace
+
+import yaml
 
 from keymap_drawer.config import Config
 
@@ -17,6 +19,18 @@ def main() -> None:
     """Entry point for zmk-buddy - launches the live keymap viewer."""
     parser = ArgumentParser(description="ZMK Buddy - Live keymap visualization for ZMK keyboards")
     _ = parser.add_argument("-d", "--debug", action="store_true", help="Enable debug logging")
+    _ = parser.add_argument(
+        "-c",
+        "--config",
+        help="A YAML file containing settings for parsing and drawing, "
+        "default can be dumped using the `keymap dump-config` command and modified",
+        type=FileType("rt", encoding="utf-8"),
+    )
+    _ = parser.add_argument(
+        "-z",
+        "--zmk-keyboard",
+        help="Name of the keyboard in ZMK, to look up physical layout for",
+    )
     _ = parser.add_argument(
         "-k",
         "--keymap",
@@ -48,7 +62,8 @@ def main() -> None:
     # Import and run live view
     from zmk_buddy.live import live
 
-    config = Config()
+    # Load config from file if specified, otherwise use defaults
+    config = Config.model_validate(yaml.safe_load(args.config)) if args.config else Config()
     live(args, config)
 
 

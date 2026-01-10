@@ -952,6 +952,16 @@ def live(args: Namespace, config: Config) -> None:  # pylint: disable=unused-arg
         logger.info("Loading default keymap (miryoku)")
         yaml_data = load_default_keymap()
 
+    # Override layout with --zmk-keyboard if specified
+    if hasattr(args, "zmk_keyboard") and args.zmk_keyboard:
+        logger.info(f"Using ZMK keyboard layout: {args.zmk_keyboard}")
+        # Get existing layout from yaml_data and merge with zmk_keyboard
+        keymap_layout = yaml_data.get("layout", {})
+        yaml_data["layout"] = {
+            "layout_name": keymap_layout.get("layout_name"),
+            "zmk_keyboard": args.zmk_keyboard,
+        }
+
     # Create the Qt application
     app = QApplication(sys.argv)
 
