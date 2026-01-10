@@ -41,9 +41,10 @@ jobs:
       - name: Black
         run: poetry run black --check zmk_buddy
 
-      - name: Pylint
-        run: poetry run pylint --disable=fixme zmk_buddy
-        if: success() || failure()
+      # FIXME - can't work until qt6 can install on github runner
+      # - name: Pylint
+      #  run: poetry run pylint --disable=fixme zmk_buddy
+      #  if: success() || failure()
 
       - name: Mypy
         run: poetry run mypy zmk_buddy
