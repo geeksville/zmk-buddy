@@ -21,10 +21,11 @@ ZMK Buddy includes a learning feature to help you master touch typing without lo
 
 ### How It Works
 
-1. Each time you type a key, it's tracked as "pending"
-2. If you press another key (not backspace), the pending key is marked as **correct**
-3. If you press backspace, the pending key is marked as **incorrect**
-4. Once a key reaches 90% accuracy over at least 100 presses, it's considered "learned" and dimmed in the display
+1. Each key starts with a score of 0%
+2. Each time you type a key, it's tracked as "pending"
+3. If you press another key (not backspace), the pending key is marked as **correct** (+1% to score)
+4. If you press backspace, the pending key is marked as **incorrect** (-5% to score)
+5. Once a key's score exceeds 80%, it's considered "learned" and dimmed in the display
 
 ## Installation
 

@@ -17,11 +17,20 @@ from zmk_buddy.util import get_settings_dir
 
 logger = logging.getLogger(__name__)
 
-# Minimum accuracy percentage (0-100) required to consider a key "learned"
-LEARNED_ACCURACY_THRESHOLD = 90
+# Score threshold (0-100) above which a key is considered "learned"
+LEARNED_SCORE_THRESHOLD = 80
 
-# Minimum number of key presses required before a key can be considered "learned"
-LEARNED_MIN_PRESSES = 100
+# Score increase for a correct keystroke
+CORRECT_SCORE_INCREASE = 1
+
+# Score decrease for an incorrect keystroke
+INCORRECT_SCORE_DECREASE = 5
+
+# Maximum score a key can have
+MAX_SCORE = 100
+
+# Minimum score a key can have
+MIN_SCORE = 0
 
 # Filename for storing key statistics
 STATS_FILENAME = "key_stats.json"
@@ -29,45 +38,44 @@ STATS_FILENAME = "key_stats.json"
 
 @dataclass
 class KeyStats:
-    """Statistics for a single key."""
+    """Statistics for a single key using a score-based system.
     
-    correct: int = 0
-    incorrect: int = 0
+    Score ranges from 0-100:
+    - Correct keystroke: +1%
+    - Incorrect keystroke: -5%
+    - Key is "learned" when score > 80%
+    """
     
-    @property
-    def total(self) -> int:
-        """Total number of presses for this key."""
-        return self.correct + self.incorrect
+    score: float = 0.0
+    total_presses: int = 0
     
-    @property
-    def accuracy(self) -> float:
-        """Accuracy percentage (0-100) for this key."""
-        if self.total == 0:
-            return 0.0
-        return (self.correct / self.total) * 100
+    def record_correct(self) -> None:
+        """Record a correct keystroke, increasing score by 1%."""
+        self.score = min(MAX_SCORE, self.score + CORRECT_SCORE_INCREASE)
+        self.total_presses += 1
+    
+    def record_incorrect(self) -> None:
+        """Record an incorrect keystroke, decreasing score by 5%."""
+        self.score = max(MIN_SCORE, self.score - INCORRECT_SCORE_DECREASE)
+        self.total_presses += 1
     
     def is_learned(self) -> bool:
         """Check if this key is considered 'learned'.
         
-        A key is learned if:
-        - It has been pressed at least LEARNED_MIN_PRESSES times
-        - The accuracy is at least LEARNED_ACCURACY_THRESHOLD percent
+        A key is learned when its score exceeds the threshold (80%).
         """
-        return (
-            self.total >= LEARNED_MIN_PRESSES and 
-            self.accuracy >= LEARNED_ACCURACY_THRESHOLD
-        )
+        return self.score > LEARNED_SCORE_THRESHOLD
     
-    def to_dict(self) -> dict[str, int]:
+    def to_dict(self) -> dict[str, float | int]:
         """Convert to dictionary for JSON serialization."""
-        return {"correct": self.correct, "incorrect": self.incorrect}
+        return {"score": self.score, "total_presses": self.total_presses}
     
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "KeyStats":
         """Create from dictionary (JSON deserialization)."""
         return cls(
-            correct=data.get("correct", 0),
-            incorrect=data.get("incorrect", 0)
+            score=data.get("score", 0.0),
+            total_presses=data.get("total_presses", 0)
         )
 
 
@@ -128,9 +136,9 @@ class LearningTracker:
         """Get or create statistics for a key."""
         if key not in self._stats:
             if self._testing_mode:
-                # In testing mode, initialize keys with 100 correct, 0 incorrect
-                # This makes them immediately "learned" (meets the 100 press threshold)
-                self._stats[key] = KeyStats(correct=100, incorrect=0)
+                # In testing mode, initialize keys at 80% (at learned threshold)
+                # One correct keystroke will push them to 81% (>80% = learned)
+                self._stats[key] = KeyStats(score=80, total_presses=0)
             else:
                 self._stats[key] = KeyStats()
         return self._stats[key]
@@ -152,8 +160,8 @@ class LearningTracker:
             if self._pending_key is not None:
                 # Previous key was incorrect (user pressed backspace to correct it)
                 stats = self._get_stats(self._pending_key)
-                stats.incorrect += 1
-                logger.debug(f"Key '{self._pending_key}' marked incorrect (accuracy: {stats.accuracy:.1f}%)")
+                stats.record_incorrect()
+                logger.debug(f"Key '{self._pending_key}' marked incorrect (score: {stats.score:.1f}%)")
                 self._pending_key = None
             # Don't track backspace itself as a learning key
             return
@@ -162,8 +170,8 @@ class LearningTracker:
         if self._pending_key is not None:
             # Previous key was correct (no backspace before this key)
             stats = self._get_stats(self._pending_key)
-            stats.correct += 1
-            logger.debug(f"Key '{self._pending_key}' marked correct (accuracy: {stats.accuracy:.1f}%)")
+            stats.record_correct()
+            logger.debug(f"Key '{self._pending_key}' marked correct (score: {stats.score:.1f}%)")
         
         # Set this key as pending (will be validated on next keypress)
         self._pending_key = key_lower
@@ -197,19 +205,19 @@ class LearningTracker:
         """
         return {key for key, stats in self._stats.items() if stats.is_learned()}
     
-    def get_key_accuracy(self, key: str) -> float | None:
-        """Get the accuracy for a specific key.
+    def get_key_score(self, key: str) -> float | None:
+        """Get the score for a specific key.
         
         Args:
             key: The key label to check
             
         Returns:
-            Accuracy percentage (0-100) or None if no data
+            Score percentage (0-100) or None if no data
         """
         key_lower = key.lower()
         if key_lower not in self._stats:
             return None
-        return self._stats[key_lower].accuracy
+        return self._stats[key_lower].score
     
     def get_summary(self) -> str:
         """Get a human-readable summary of learning progress.
@@ -223,18 +231,16 @@ class LearningTracker:
         total_keys = len(self._stats)
         learned_keys = len(self.get_learned_keys())
         
-        # Calculate overall accuracy
-        total_correct = sum(s.correct for s in self._stats.values())
-        total_incorrect = sum(s.incorrect for s in self._stats.values())
-        total_presses = total_correct + total_incorrect
-        
-        if total_presses > 0:
-            overall_accuracy = (total_correct / total_presses) * 100
+        # Calculate average score across all keys
+        if total_keys > 0:
+            avg_score = sum(s.score for s in self._stats.values()) / total_keys
         else:
-            overall_accuracy = 0.0
+            avg_score = 0.0
+        
+        total_presses = sum(s.total_presses for s in self._stats.values())
         
         return (
             f"Learned {learned_keys}/{total_keys} keys | "
-            f"Overall accuracy: {overall_accuracy:.1f}% | "
+            f"Average score: {avg_score:.1f}% | "
             f"Total keypresses: {total_presses}"
         )

@@ -500,9 +500,8 @@ class SvgWidget(QWidget):
         ET.register_namespace('xlink', 'http://www.w3.org/1999/xlink')
         
         # Apply learned key dimming before converting to string
-        # This ensures dimming persists across all reloads
-        if self.learned_keys:
-            self._apply_dimming_to_tree()
+        # This ensures dimming is applied/removed correctly across all reloads
+        self._apply_dimming_to_tree()
         
         # Reload the SVG from the modified tree
         svg_bytes = ET.tostring(self.svg_root, encoding='unicode')
@@ -540,12 +539,9 @@ class SvgWidget(QWidget):
         
         This is called automatically by _reload_svg.
         """
-        if not self.learned_keys:
-            return
-        
         dimmed_count = 0
         
-        # Find all key groups and apply opacity to learned ones
+        # Find all key groups and apply/remove opacity based on learned status
         for group in self.svg_root.iter('{http://www.w3.org/2000/svg}g'):
             class_attr = group.get('class', '')
             
@@ -560,11 +556,16 @@ class SvgWidget(QWidget):
                 # Check tap labels (main key labels)
                 if 'key tap' in text_class or text_class == 'key':
                     key_text = text_elem.text
-                    if key_text and key_text.strip().lower() in self.learned_keys:
-                        # Apply opacity to the entire key group
-                        group.set('opacity', str(LEARNED_KEY_OPACITY))
-                        # logger.debug(f"Dimmed key '{key_text}' to opacity {LEARNED_KEY_OPACITY}")
-                        dimmed_count += 1
+                    if key_text:
+                        key_lower = key_text.strip().lower()
+                        if key_lower in self.learned_keys:
+                            # Apply opacity to the entire key group
+                            group.set('opacity', str(LEARNED_KEY_OPACITY))
+                            dimmed_count += 1
+                        else:
+                            # Remove opacity if previously set (key no longer learned)
+                            if 'opacity' in group.attrib:
+                                del group.attrib['opacity']
                         break
         
         if dimmed_count > 0:
