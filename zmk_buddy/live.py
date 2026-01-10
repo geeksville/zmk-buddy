@@ -21,6 +21,8 @@ from PySide6.QtCore import QSize, Qt, QPoint, Signal, QObject, QTimer
 from keymap_drawer.config import Config
 from keymap_drawer.draw import KeymapDrawer
 
+from zmk_buddy.learning import LearningTracker
+
 logger = logging.getLogger(__name__)
 
 # Window visibility timeout in seconds
@@ -31,6 +33,9 @@ TRANSPARENCY = 0.80
 
 # SVG scaling factor for window size
 SVG_SCALE = 0.75
+
+# Opacity for learned keys (0.0 = invisible, 1.0 = fully visible)
+LEARNED_KEY_OPACITY = 0.20
 
 # Try to import evdev for global keyboard monitoring
 try:
@@ -408,6 +413,35 @@ class SvgWidget(QWidget):
         
         # Reload and repaint
         self._reload_svg()
+    
+    def apply_learned_key_dimming(self, learned_keys: set[str]) -> None:
+        """Apply opacity dimming to learned keys.
+        
+        Args:
+            learned_keys: Set of key labels that are considered learned
+        """
+        if not learned_keys:
+            return
+        
+        # Find all key groups and apply opacity to learned ones
+        for group in self.svg_root.iter('{http://www.w3.org/2000/svg}g'):
+            class_attr = group.get('class', '')
+            
+            # Check if this is a key group
+            if 'key' not in class_attr:
+                continue
+            
+            # Find text elements to determine the key label
+            for text_elem in group.findall('{http://www.w3.org/2000/svg}text'):
+                text_class = text_elem.get('class', '')
+                
+                # Check tap labels (main key labels)
+                if 'key tap' in text_class or text_class == 'key':
+                    key_text = text_elem.text
+                    if key_text and key_text.strip().lower() in learned_keys:
+                        # Apply opacity to the entire key group
+                        group.set('opacity', str(LEARNED_KEY_OPACITY))
+                        break
 
 
 class KeymapWindow(QMainWindow):
@@ -422,10 +456,14 @@ class KeymapWindow(QMainWindow):
     config: Config
     layer_names: list[str]
     current_layer_index: int
+    learning_tracker: LearningTracker
     
     def __init__(self, yaml_data: dict, config: Config):
         super().__init__()
         self.setWindowTitle("Keymap Drawer - Live View")
+        
+        # Initialize learning tracker
+        self.learning_tracker = LearningTracker()
         
         # Store YAML data and config for layer regeneration
         self.yaml_data = yaml_data
@@ -450,6 +488,10 @@ class KeymapWindow(QMainWindow):
         # Generate initial SVG and create widget
         svg_content = self._render_current_layer()
         self.svg_widget = SvgWidget(svg_content)
+        
+        # Apply learned key dimming
+        self._apply_learned_dimming()
+        
         self.setCentralWidget(self.svg_widget)
         
         # Use QGraphicsOpacityEffect for Wayland compatibility
@@ -489,6 +531,14 @@ class KeymapWindow(QMainWindow):
         layer_name = self.layer_names[self.current_layer_index]
         return render_svg(self.yaml_data, self.config, layer_name)
     
+    def _apply_learned_dimming(self) -> None:
+        """Apply opacity dimming to learned keys in the current SVG widget."""
+        learned_keys = self.learning_tracker.get_learned_keys()
+        if learned_keys:
+            logger.info(f"Dimming {len(learned_keys)} learned keys")
+            self.svg_widget.apply_learned_key_dimming(learned_keys)
+            self.svg_widget._reload_svg()
+    
     def next_layer(self) -> None:
         """Cycle to the next layer and regenerate the display."""
         if not self.layer_names:
@@ -505,6 +555,9 @@ class KeymapWindow(QMainWindow):
         # Replace the SVG widget
         old_widget = self.svg_widget
         self.svg_widget = SvgWidget(svg_content)
+        
+        # Apply learned key dimming
+        self._apply_learned_dimming()
         
         # Initialize shift labels before first render to fix y coordinates
         self.svg_widget.update_shift_labels()
@@ -526,6 +579,9 @@ class KeymapWindow(QMainWindow):
         """Called when window is shown"""
         super().showEvent(a0)
         
+        # Log learning progress
+        logger.info(f"Learning: {self.learning_tracker.get_summary()}")
+        
         # Try to start global keyboard monitoring
         if evdev_available:
             self.keyboard_monitor = KeyboardMonitor()
@@ -538,6 +594,9 @@ class KeymapWindow(QMainWindow):
         
     def on_global_key_press(self, key_char: str) -> None:
         """Handle global key press from keyboard monitor"""
+        # Track keypress for learning
+        self.learning_tracker.on_key_press(key_char)
+        
         # Show window and track this key as held
         logger.debug(f"Key press: {key_char}")
         self.held_keys.add(key_char)
@@ -546,6 +605,9 @@ class KeymapWindow(QMainWindow):
     
     def on_global_key_release(self, key_char: str) -> None:
         """Handle global key release from keyboard monitor"""
+        # Track key release for learning (currently unused but available)
+        self.learning_tracker.on_key_release(key_char)
+        
         self.held_keys.discard(key_char)
         self.svg_widget.update_key_state(key_char, is_held=False)
         # Start hide timer if no keys are held
@@ -574,6 +636,11 @@ class KeymapWindow(QMainWindow):
         self.hide_timer.stop()
         if self.keyboard_monitor:
             self.keyboard_monitor.stop()
+        
+        # Save learning statistics on clean exit
+        self.learning_tracker.save_stats()
+        logger.info(f"Saved learning progress: {self.learning_tracker.get_summary()}")
+        
         super().closeEvent(a0)
 
     @override    
@@ -598,6 +665,9 @@ class KeymapWindow(QMainWindow):
             return
         
         if key_char:
+            # Track keypress for learning
+            self.learning_tracker.on_key_press(key_char)
+            
             self.held_keys.add(key_char)
             self.show_window_temporarily()
             self.svg_widget.update_key_state(key_char, is_held=True)
@@ -615,6 +685,9 @@ class KeymapWindow(QMainWindow):
             key_char = a0.text()
         
         if key_char and key_char.lower() != 'x':
+            # Track key release for learning
+            self.learning_tracker.on_key_release(key_char)
+            
             self.held_keys.discard(key_char)
             self.svg_widget.update_key_state(key_char, is_held=False)
             # Start hide timer if no keys are held
