@@ -26,3 +26,16 @@ keymap-use-dev:
     pip uninstall -y keymap-drawer || true
     pip install -e ./vendor/keymap-drawer
     @echo "Now using local dev version from vendor/keymap-drawer"
+
+# Bump version, commit, tag and push to trigger a PyPI release
+# Usage: just bump-version patch|minor|major
+bump-version bump_type="patch":
+    @echo "Bumping {{bump_type}} version..."
+    poetry version {{bump_type}}
+    @VERSION=$(poetry version -s) && \
+        git add pyproject.toml && \
+        git commit -m "Bump version to v$VERSION" && \
+        git tag "v$VERSION" && \
+        echo "Created tag v$VERSION" && \
+        git push && git push --tags && \
+        echo "Pushed to origin. GitHub Actions will publish to PyPI."
