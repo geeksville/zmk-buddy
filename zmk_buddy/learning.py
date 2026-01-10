@@ -79,11 +79,16 @@ class LearningTracker:
     before typing the next key.
     """
     
-    def __init__(self):
+    def __init__(self, testing_mode: bool = False):
         self._stats: dict[str, KeyStats] = {}
         self._pending_key: str | None = None  # Last key pressed, awaiting validation
         self._stats_file = get_settings_dir() / STATS_FILENAME
-        self._load_stats()
+        self._testing_mode = testing_mode
+        
+        if not testing_mode:
+            self._load_stats()
+        else:
+            logger.info("Testing mode enabled: stats will not be saved, all keys start nearly learned")
     
     def _load_stats(self) -> None:
         """Load statistics from JSON file."""
@@ -106,6 +111,10 @@ class LearningTracker:
     
     def save_stats(self) -> None:
         """Save statistics to JSON file."""
+        if self._testing_mode:
+            logger.info("Testing mode: skipping save of key statistics")
+            return
+        
         try:
             data = {key: stats.to_dict() for key, stats in self._stats.items()}
             with open(self._stats_file, 'w', encoding='utf-8') as f:
@@ -117,7 +126,12 @@ class LearningTracker:
     def _get_stats(self, key: str) -> KeyStats:
         """Get or create statistics for a key."""
         if key not in self._stats:
-            self._stats[key] = KeyStats()
+            if self._testing_mode:
+                # In testing mode, initialize keys with 100 correct, 0 incorrect
+                # This makes them immediately "learned" (meets the 100 press threshold)
+                self._stats[key] = KeyStats(correct=100, incorrect=0)
+            else:
+                self._stats[key] = KeyStats()
         return self._stats[key]
     
     def on_key_press(self, key: str) -> None:

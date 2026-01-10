@@ -219,11 +219,13 @@ class SvgWidget(QWidget):
     svg_tree: ET.ElementTree
     svg_root: ET.Element
     held_keys: set[str]
+    learned_keys: set[str]  # Keys that have been learned
     
     def __init__(self, svg_content: str):
         super().__init__()
         self.svg_content = svg_content
         self.held_keys = set()
+        self.learned_keys = set()  # Initialize empty, will be updated later
         
         # Enable transparent background for the widget
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -392,6 +394,11 @@ class SvgWidget(QWidget):
         ET.register_namespace('', 'http://www.w3.org/2000/svg')
         ET.register_namespace('xlink', 'http://www.w3.org/1999/xlink')
         
+        # Apply learned key dimming before converting to string
+        # This ensures dimming persists across all reloads
+        if self.learned_keys:
+            self._apply_dimming_to_tree()
+        
         # Reload the SVG from the modified tree
         svg_bytes = ET.tostring(self.svg_root, encoding='unicode')
         
@@ -414,14 +421,24 @@ class SvgWidget(QWidget):
         # Reload and repaint
         self._reload_svg()
     
-    def apply_learned_key_dimming(self, learned_keys: set[str]) -> None:
-        """Apply opacity dimming to learned keys.
+    def set_learned_keys(self, learned_keys: set[str]) -> None:
+        """Set the learned keys that should be dimmed.
         
         Args:
             learned_keys: Set of key labels that are considered learned
         """
-        if not learned_keys:
+        self.learned_keys = learned_keys
+        logger.debug(f"Updated learned keys: {learned_keys}")
+    
+    def _apply_dimming_to_tree(self) -> None:
+        """Apply opacity dimming to learned keys in the SVG tree.
+        
+        This is called automatically by _reload_svg.
+        """
+        if not self.learned_keys:
             return
+        
+        dimmed_count = 0
         
         # Find all key groups and apply opacity to learned ones
         for group in self.svg_root.iter('{http://www.w3.org/2000/svg}g'):
@@ -438,10 +455,15 @@ class SvgWidget(QWidget):
                 # Check tap labels (main key labels)
                 if 'key tap' in text_class or text_class == 'key':
                     key_text = text_elem.text
-                    if key_text and key_text.strip().lower() in learned_keys:
+                    if key_text and key_text.strip().lower() in self.learned_keys:
                         # Apply opacity to the entire key group
                         group.set('opacity', str(LEARNED_KEY_OPACITY))
+                        # logger.debug(f"Dimmed key '{key_text}' to opacity {LEARNED_KEY_OPACITY}")
+                        dimmed_count += 1
                         break
+        
+        if dimmed_count > 0:
+            logger.debug(f"Applied dimming to {dimmed_count} keys")
 
 
 class KeymapWindow(QMainWindow):
@@ -458,12 +480,12 @@ class KeymapWindow(QMainWindow):
     current_layer_index: int
     learning_tracker: LearningTracker
     
-    def __init__(self, yaml_data: dict, config: Config):
+    def __init__(self, yaml_data: dict, config: Config, testing_mode: bool = False):
         super().__init__()
         self.setWindowTitle("Keymap Drawer - Live View")
         
         # Initialize learning tracker
-        self.learning_tracker = LearningTracker()
+        self.learning_tracker = LearningTracker(testing_mode=testing_mode)
         
         # Store YAML data and config for layer regeneration
         self.yaml_data = yaml_data
@@ -535,9 +557,13 @@ class KeymapWindow(QMainWindow):
         """Apply opacity dimming to learned keys in the current SVG widget."""
         learned_keys = self.learning_tracker.get_learned_keys()
         if learned_keys:
-            logger.info(f"Dimming {len(learned_keys)} learned keys")
-            self.svg_widget.apply_learned_key_dimming(learned_keys)
-            self.svg_widget._reload_svg()
+            logger.info(f"Dimming {len(learned_keys)} learned keys: {learned_keys}")
+        else:
+            logger.debug("No learned keys to dim")
+        
+        # Set the learned keys in the widget (will be applied on next reload)
+        self.svg_widget.set_learned_keys(learned_keys)
+        self.svg_widget._reload_svg()
     
     def next_layer(self) -> None:
         """Cycle to the next layer and regenerate the display."""
@@ -596,6 +622,10 @@ class KeymapWindow(QMainWindow):
         """Handle global key press from keyboard monitor"""
         # Track keypress for learning
         self.learning_tracker.on_key_press(key_char)
+        
+        # Update learned keys in widget (for dimming)
+        learned_keys = self.learning_tracker.get_learned_keys()
+        self.svg_widget.set_learned_keys(learned_keys)
         
         # Show window and track this key as held
         logger.debug(f"Key press: {key_char}")
@@ -808,7 +838,8 @@ def live(args: Namespace, config: Config) -> None:  # pylint: disable=unused-arg
     app = QApplication(sys.argv)
     
     # Create and show the window
-    window = KeymapWindow(yaml_data, config)
+    testing_mode = hasattr(args, 'testing') and args.testing
+    window = KeymapWindow(yaml_data, config, testing_mode=testing_mode)
     window.show()
     
     logger.info("Starting Qt event loop...")

@@ -32,6 +32,11 @@ def main() -> None:
             "(default: use built-in miryoku layout)"
         )
     )
+    _ = parser.add_argument(
+        "-t", "--testing",
+        action="store_true",
+        help="Testing mode: don't save stats, initialize all keys as learned (100 correct, 0 incorrect)"
+    )
     args: Namespace = parser.parse_args()
 
     # Set log level based on debug flag
