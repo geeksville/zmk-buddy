@@ -133,7 +133,7 @@ class KeyboardMonitor(QObject):
     key_pressed: Signal = Signal(str)
     key_released: Signal = Signal(str)
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.stop_flag: bool = False
         self.my_thread: Thread | None = None
@@ -707,7 +707,7 @@ class KeymapWindow(QMainWindow):
         self.adjustSize()
     
     @override
-    def showEvent(self, a0: QShowEvent | None) -> None:
+    def showEvent(self, a0: QShowEvent) -> None:
         """Called when window is shown"""
         super().showEvent(a0)
         
@@ -767,7 +767,7 @@ class KeymapWindow(QMainWindow):
             self.opacity_effect.setOpacity(0.0)
     
     @override
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, a0: QCloseEvent) -> None:
         """Clean up when window is closed"""
         self.hide_timer.stop()
         if self.keyboard_monitor:
@@ -788,7 +788,8 @@ class KeymapWindow(QMainWindow):
             return
         
         # Try to map special keys first
-        key_char = QT_KEY_MAP.get(a0.key())
+        key = a0.key()
+        key_char = QT_KEY_MAP.get(Qt.Key(key))
         if not key_char:
             # Fall back to text for regular keys
             key_char = a0.text()
@@ -817,7 +818,8 @@ class KeymapWindow(QMainWindow):
             return
         
         # Try to map special keys first
-        key_char = QT_KEY_MAP.get(a0.key())
+        key = a0.key()
+        key_char = QT_KEY_MAP.get(Qt.Key(key))
         if not key_char:
             # Fall back to text for regular keys
             key_char = a0.text()

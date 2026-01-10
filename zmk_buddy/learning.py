@@ -131,6 +131,7 @@ class LearningTracker:
             return self._stats_file
         except OSError as e:
             logger.warning(f"Failed to save stats file: {e}")
+            return None
     
     def _get_stats(self, key: str) -> KeyStats:
         """Get or create statistics for a key."""
