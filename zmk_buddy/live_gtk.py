@@ -192,8 +192,20 @@ class KeymapWindow(Gtk.ApplicationWindow):
 
         # Try to set always-on-top after window is realized
         surface = self.get_surface()
-        if surface and hasattr(surface, "set_keep_above"):
-            surface.set_keep_above(True)
+        if surface:
+            if hasattr(surface, "set_keep_above"):
+                surface.set_keep_above(True)
+
+            # Make window click-through - all input passes through to windows below
+            # This is done by setting an empty input region
+            try:
+                from cairo import Region
+
+                empty_region = Region()
+                surface.set_input_region(empty_region)
+                logger.debug("Window configured for click-through input")
+            except Exception as e:
+                logger.warning(f"Could not set click-through input: {e}")
 
     def _render_current_layer(self) -> str:
         """Render SVG for the current layer."""
