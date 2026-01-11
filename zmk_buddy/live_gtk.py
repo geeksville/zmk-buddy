@@ -267,6 +267,7 @@ class KeymapWindow(Gtk.ApplicationWindow):
 </html>"""
 
         # Load the HTML content
+        logger.debug("Updating WebView with new SVG content")
         self.webview.load_html(html, "file:///")
 
     def _apply_dimming_to_tree(self) -> None:
@@ -398,7 +399,12 @@ class KeymapWindow(Gtk.ApplicationWindow):
 
         # Track for learning
         self.learning_tracker.on_key_press(key_char)
+        old_learned_keys = self.learned_keys
         self.learned_keys = self.learning_tracker.get_learned_keys()
+
+        # Re-apply dimming if learned keys changed
+        if old_learned_keys != self.learned_keys:
+            self._apply_dimming_to_tree()
 
         # Update display
         logger.debug(f"Key press: {key_char}")
