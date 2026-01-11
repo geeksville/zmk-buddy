@@ -505,7 +505,7 @@ class SimScanner(ScannerAPI):
 
     # Layer names to cycle through
     LAYER_NAMES: list[str] = field(
-        default_factory=lambda: ["Base", "Nav", "Num", "Combos", "Fun"],
+        default_factory=lambda: ["Base", "Nav", "Num", "Combos", "Fn"],
         init=False,
     )
 
