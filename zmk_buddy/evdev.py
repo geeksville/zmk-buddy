@@ -5,11 +5,14 @@ This module provides global keyboard monitoring using the evdev library,
 which directly accesses Linux input devices for reliable key event capture.
 """
 
+from evdev.device import InputDevice
+
+
 import logging
 import select
 import time
 from threading import Thread
-from typing import override
+from typing import Any, override
 
 from zmk_buddy.keyboard_monitor_base import KeyboardMonitorBase
 
@@ -58,14 +61,14 @@ class EvdevKeyboardMonitor(KeyboardMonitorBase):
         self.stop_flag: bool = False
         self.my_thread: Thread | None = None
 
-    def _find_keyboard_devices_evdev(self) -> list:
+    def _find_keyboard_devices_evdev(self) -> list[InputDevice[str]]:
         """Find all keyboard devices using evdev (Linux only)"""
         if not evdev_available:
             return []
 
-        keyboards = []
+        keyboards: list[InputDevice[str]] = []
         try:
-            devices = [InputDevice(path) for path in evdev.list_devices()]
+            devices: list[InputDevice[str]] = [InputDevice(path) for path in evdev.list_devices()]
             for device in devices:
                 # Look for a device with keyboard capabilities
                 caps = device.capabilities()
