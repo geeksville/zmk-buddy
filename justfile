@@ -10,8 +10,10 @@ lint:
     poetry run mypy zmk_buddy
     poetry run pylint --disable=fixme zmk_buddy
 
-test-ferris:
-    poetry run zmk-buddy -c test/urob/config.yaml -k test/urob/base.yaml -d -z ferris/sweep
+# Test using a custom layout
+test-layout:
+    # poetry run zmk-buddy -c test/urob/config.yaml -k test/urob/base.yaml -d -z ferris/sweep
+    poetry run zmk-buddy -k test/urob/base.yaml -d -z corneish_zen
 
 # Use pip to install the PyPI released version of keymap-drawer
 keymap-use-release:

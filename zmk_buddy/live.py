@@ -731,6 +731,18 @@ class KeymapWindow(QMainWindow):
 
     def on_global_key_press(self, key_char: str) -> None:
         """Handle global key press from keyboard monitor"""
+
+        # to facilitate testing check for x and y here and do special things
+        # x to exit, y to cycle layers
+        if key_char.lower() == "x":
+            logger.info("Exiting...")
+            _ = self.close()
+            return
+
+        if key_char.lower() == "y":
+            self.next_layer()
+            return
+
         # Track keypress for learning
         self.learning_tracker.on_key_press(key_char)
 
@@ -746,6 +758,11 @@ class KeymapWindow(QMainWindow):
 
     def on_global_key_release(self, key_char: str) -> None:
         """Handle global key release from keyboard monitor"""
+
+        if key_char.lower() == "y":
+            self.next_layer()
+            return
+
         # Track key release for learning (currently unused but available)
         self.learning_tracker.on_key_release(key_char)
 
@@ -799,22 +816,8 @@ class KeymapWindow(QMainWindow):
             # Fall back to text for regular keys
             key_char = a0.text()
 
-        if key_char and key_char.lower() == "x":
-            logger.info("Exiting...")
-            _ = self.close()
-            return
-
-        if key_char and key_char.lower() == "y":
-            self.next_layer()
-            return
-
         if key_char:
-            # Track keypress for learning
-            self.learning_tracker.on_key_press(key_char)
-
-            self.held_keys.add(key_char)
-            self.show_window_temporarily()
-            self.svg_widget.update_key_state(key_char, is_held=True)
+            self.on_global_key_press(key_char)
 
     @override
     def keyReleaseEvent(self, a0: QKeyEvent | None) -> None:
@@ -830,14 +833,7 @@ class KeymapWindow(QMainWindow):
             key_char = a0.text()
 
         if key_char and key_char.lower() != "x":
-            # Track key release for learning
-            self.learning_tracker.on_key_release(key_char)
-
-            self.held_keys.discard(key_char)
-            self.svg_widget.update_key_state(key_char, is_held=False)
-            # Start hide timer if no keys are held
-            if not self.held_keys:
-                self.start_hide_timer()
+            self.on_global_key_release(key_char)
 
     @override
     def mousePressEvent(self, a0: QMouseEvent | None) -> None:

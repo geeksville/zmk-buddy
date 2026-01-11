@@ -1,4 +1,4 @@
-layout: {zmk_keyboard: base}
+layout: {zmk_keyboard: corneish_zen, layout_name: foostan_corne_5col_layout}
 layers:
   Base:
     - Q
@@ -31,10 +31,12 @@ layers:
     - {t: ',', s: ;}
     - {t: ., s: ':'}
     - {t: '?', s: '!'}
+    - Gui
     - {t: Spc, h: Nav, s: Sentence}
     - {t: Enter, h: Fn}
     - {t: Numword, h: Num, s: Sticky Num}
     - {t: Magic, h: Shift}
+    - Smart Mouse
   Nav:
     - Alt+F4
     - {type: trans}
@@ -66,10 +68,12 @@ layers:
     - {type: trans}
     - {type: trans}
     - {type: trans}
+    - Gui
     - {type: held}
     - {type: trans}
     - {type: trans}
     - CANCEL
+    - Smart Mouse
   Fn:
     - F12
     - F7
@@ -101,10 +105,12 @@ layers:
     - Alt+`
     - {type: trans}
     - {type: trans}
+    - Gui
     - {type: trans}
     - {type: held}
     - $$mdi:volume-off$$
     - $$mdi:play-pause$$
+    - Smart Mouse
   Num:
     - {type: trans}
     - '7'
@@ -136,10 +142,12 @@ layers:
     - {type: trans}
     - {type: trans}
     - {type: trans}
+    - Gui
     - {type: trans}
     - {type: trans}
     - {type: held}
     - {type: trans}
+    - Smart Mouse
   Sys:
     - BT 1
     - BT 2
@@ -171,10 +179,12 @@ layers:
     - {type: trans}
     - {type: trans}
     - {type: trans}
+    - Gui
     - {type: trans}
     - {type: held}
     - {type: held}
     - {type: trans}
+    - Smart Mouse
   Mouse:
     - {type: trans}
     - {type: trans}
@@ -206,12 +216,14 @@ layers:
     - Middle Click
     - Right Click
     - {type: trans}
+    - Gui
     - {type: trans}
     - {type: trans}
     - Scroll ↑
     - Scroll ↓
+    - Smart Mouse
   Combos: ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
-    '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
+    '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
 combos:
   - p: [1, 2]
     k: Esc

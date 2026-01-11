@@ -53,8 +53,8 @@ If you do not specify a keymap a placeholder example keymap is used, which is pr
 
 ### Controls
 
-- Press **y** to cycle through layers
-- Press **x** to exit
+- FIXME to cycle through layers
+- FIXME to exit
 - Drag the window to reposition it
 
 ## Requirements
