@@ -5,9 +5,11 @@ and tracking keypresses in real-time.
 """
 
 import asyncio
+import gc
 import logging
 import platform
 import sys
+import warnings
 from argparse import Namespace
 from datetime import datetime
 from io import StringIO
@@ -33,6 +35,9 @@ if TYPE_CHECKING:
     from zmk_buddy.zmk_client import ScannerAPI, ZMKStatusAdvertisement
 
 logger = logging.getLogger(__name__)
+
+# Suppress known Qt/X11 socket resource warnings
+warnings.filterwarnings("ignore", category=ResourceWarning, message=".*unclosed.*socket.*X11.*")
 
 
 def create_keyboard_monitor() -> KeyboardMonitorBase | None:
@@ -592,14 +597,26 @@ class KeymapWindow(QMainWindow):
         self.zmk_scanner.remove_callback(self._on_zmk_status)
 
         try:
-            # Schedule the stop coroutine in the scanner's event loop
-            asyncio.run_coroutine_threadsafe(self.zmk_scanner.stop(), self.scanner_loop)
-            # Stop the event loop
+            # Schedule the stop coroutine in the scanner's event loop and wait for it
+            stop_future = asyncio.run_coroutine_threadsafe(self.zmk_scanner.stop(), self.scanner_loop)
+
+            # Wait for the stop coroutine to complete (with timeout)
+            try:
+                stop_future.result(timeout=2.0)
+                logger.debug("ZMK scanner stop() completed successfully")
+            except asyncio.TimeoutError:
+                logger.warning("ZMK scanner stop() timed out")
+            except Exception as e:
+                logger.error(f"Error in ZMK scanner stop(): {e}")
+
+            # Now stop the event loop
             self.scanner_loop.call_soon_threadsafe(self.scanner_loop.stop)
 
             # Wait for thread to finish (with timeout)
             if self.scanner_thread is not None:
                 self.scanner_thread.join(timeout=2.0)
+                if self.scanner_thread.is_alive():
+                    logger.warning("ZMK scanner thread did not finish within timeout")
 
             logger.info("ZMK BLE scanner stopped")
         except Exception as e:
@@ -688,23 +705,32 @@ class KeymapWindow(QMainWindow):
     @override
     def closeEvent(self, a0: QCloseEvent) -> None:
         """Clean up when window is closed"""
+        logger.info("Cleaning up...")
+
         self.hide_timer.stop()
 
-        # Stop ZMK scanner
+        # Stop ZMK scanner first (this may take time)
         if self.zmk_scanner is not None:
             self._stop_zmk_scanner()
 
         # Stop keyboard monitor
         if self.keyboard_monitor:
             self.keyboard_monitor.stop()
+            self.keyboard_monitor = None
 
         # Save learning statistics on clean exit
-        path = self.learning_tracker.save_stats()
-        logger.info(f"Saved learning progress: {self.learning_tracker.get_summary()}")
-        if path:
-            logger.info(f"Learning stats saved to: {path}")
+        try:
+            path = self.learning_tracker.save_stats()
+            logger.info(f"Saved learning progress: {self.learning_tracker.get_summary()}")
+            if path:
+                logger.info(f"Learning stats saved to: {path}")
+        except Exception as e:
+            logger.error(f"Error saving learning stats: {e}")
 
         super().closeEvent(a0)
+
+        # Additional cleanup to help with Qt resource management
+        self.deleteLater()
 
     @override
     def keyPressEvent(self, a0: QKeyEvent | None) -> None:
@@ -871,7 +897,25 @@ def live(
     window = KeymapWindow(yaml_data, config, testing_mode=testing_mode, zmk_scanner=scanner)
     window.show()
 
-    logger.info("Starting Qt event loop...")
-    # Start the event loop
-    exit_code = app.exec()
+    try:
+        logger.info("Starting Qt event loop...")
+        # Start the event loop
+        exit_code = app.exec()
+
+    finally:
+        # Ensure proper Qt cleanup
+        logger.debug("Cleaning up Qt application...")
+
+        # Force Qt to process all remaining events and deletions
+        app.processEvents()
+
+        # Force garbage collection to clean up any remaining references
+        del window
+        del app
+
+        # Suppress X11 socket warnings (known Qt/X11 integration issue)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=ResourceWarning, message=".*unclosed.*socket.*X11.*")
+            _ = gc.collect()  # Final cleanup
+
     sys.exit(exit_code)
