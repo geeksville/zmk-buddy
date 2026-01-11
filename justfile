@@ -8,7 +8,7 @@ default:
 lint:
     poetry run black zmk_buddy
     poetry run mypy zmk_buddy
-    poetry run pylint --disable=fixme zmk_buddy
+    poetry run pylint --jobs=0 --disable=fixme zmk_buddy
 
 # Test using a custom layout
 test-layout:

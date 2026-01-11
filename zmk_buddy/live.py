@@ -21,7 +21,7 @@ import yaml
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QGraphicsOpacityEffect
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtGui import QCloseEvent, QKeyEvent, QPainter, QShowEvent, QPaintEvent, QColor, QMouseEvent
-from PySide6.QtCore import QSize, Qt, QPoint, QTimer
+from PySide6.QtCore import QSize, Qt, QPoint, QTimer, Signal
 
 from keymap_drawer.config import Config
 from keymap_drawer.draw import KeymapDrawer
@@ -30,7 +30,7 @@ from zmk_buddy.learning import LearningTracker
 from zmk_buddy.keyboard_monitor_base import KeyboardMonitorBase
 
 if TYPE_CHECKING:
-    from zmk_buddy.zmk_client import ScannerAPI
+    from zmk_buddy.zmk_client import ScannerAPI, ZMKStatusAdvertisement
 
 logger = logging.getLogger(__name__)
 
@@ -365,6 +365,9 @@ class SvgWidget(QWidget):
 class KeymapWindow(QMainWindow):
     """Main window for displaying the keymap SVG"""
 
+    # Signal for thread-safe layer changes
+    layer_change_requested = Signal(str)
+
     svg_widget: SvgWidget
     drag_position: QPoint | None
     keyboard_monitor: "KeyboardMonitorBase | None"
@@ -441,6 +444,9 @@ class KeymapWindow(QMainWindow):
         # Track currently held keys
         self.held_keys = set()
 
+        # Connect layer change signal
+        _ = self.layer_change_requested.connect(self.set_layer)
+
         svg_size = self.svg_widget.size()
         logger.info(f"Window created with size: {svg_size.width()}x{svg_size.height()}")
         if self.layer_names:
@@ -478,7 +484,33 @@ class KeymapWindow(QMainWindow):
         layer_name = self.layer_names[self.current_layer_index]
         logger.info(f"Switching to layer: {layer_name}")
 
-        # Regenerate SVG for new layer
+        self._refresh_layer_display()
+
+    def set_layer(self, name: str) -> None:
+        """Switch to a specific layer by name.
+
+        Args:
+            name: The name of the layer to display. If not found, logs a warning.
+        """
+        if not self.layer_names:
+            logger.warning(f"Cannot set layer '{name}': no layers defined")
+            return
+
+        # Find the layer index by name (case-insensitive)
+        name_lower = name.lower()
+        for i, layer_name in enumerate(self.layer_names):
+            if layer_name.lower() == name_lower:
+                if i != self.current_layer_index:
+                    self.current_layer_index = i
+                    logger.info(f"Switching to layer: {layer_name}")
+                    self._refresh_layer_display()
+                return
+
+        logger.warning(f"Layer '{name}' not found. Available: {self.layer_names}")
+
+    def _refresh_layer_display(self) -> None:
+        """Refresh the SVG display for the current layer."""
+        # Regenerate SVG for current layer
         svg_content = self._render_current_layer()
 
         # Replace the SVG widget
@@ -531,6 +563,9 @@ class KeymapWindow(QMainWindow):
         if self.zmk_scanner is None:
             return
 
+        # Register our callback to receive status updates
+        self.zmk_scanner.add_callback(self._on_zmk_status)
+
         def run_scanner():
             """Run the scanner in an asyncio event loop."""
             self.scanner_loop = asyncio.new_event_loop()
@@ -553,6 +588,9 @@ class KeymapWindow(QMainWindow):
         if self.zmk_scanner is None or self.scanner_loop is None:
             return
 
+        # Unregister our callback
+        self.zmk_scanner.remove_callback(self._on_zmk_status)
+
         try:
             # Schedule the stop coroutine in the scanner's event loop
             asyncio.run_coroutine_threadsafe(self.zmk_scanner.stop(), self.scanner_loop)
@@ -569,6 +607,24 @@ class KeymapWindow(QMainWindow):
         finally:
             self.scanner_thread = None
             self.scanner_loop = None
+
+    def _on_zmk_status(self, status: "ZMKStatusAdvertisement") -> None:
+        """Handle status updates from the ZMK scanner.
+
+        This is called from the scanner thread, so we use Qt signals
+        for thread-safe communication with the main UI thread.
+
+        Args:
+            status: The parsed ZMK status advertisement
+        """
+        # Update layer if it changed
+        layer_name = status.layer_name.strip()
+        if layer_name:
+            logger.debug(f"ZMK status received: requesting layer change to '{layer_name}'")
+            # Emit signal for thread-safe UI update
+            self.layer_change_requested.emit(layer_name)
+        else:
+            logger.debug("ZMK status received: empty layer name, ignoring")
 
     def on_global_key_press(self, key_char: str) -> None:
         """Handle global key press from keyboard monitor"""
