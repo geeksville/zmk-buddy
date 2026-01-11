@@ -16,7 +16,7 @@ import logging
 import random
 import struct
 import time
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, field
 from enum import IntEnum, IntFlag
 from typing import Callable, override
@@ -305,7 +305,8 @@ class ZMKDevice:
 StatusCallback = Callable[[ZMKStatusAdvertisement], None]
 
 
-class ScannerAPI(ABC):
+@dataclass
+class ScannerAPI:
     """
     Abstract base class for ZMK keyboard scanners.
 
@@ -313,23 +314,19 @@ class ScannerAPI(ABC):
     from ZMK keyboards. Implementations can use BLE, simulation, or other methods.
     """
 
-    @abstractmethod
+    _callbacks: list[StatusCallback] = field(default_factory=list, init=False)
+    _devices: dict[str, ZMKDevice] = field(default_factory=dict, init=False)
+    _running: bool = field(default=False, init=False)
+
     def add_callback(self, callback: StatusCallback) -> None:
-        """
-        Register a callback to receive status updates.
+        """Register a callback to receive status updates."""
+        if callback not in self._callbacks:
+            self._callbacks.append(callback)
 
-        Args:
-            callback: Function to call when a new status advertisement is received
-        """
-
-    @abstractmethod
     def remove_callback(self, callback: StatusCallback) -> None:
-        """
-        Unregister a status callback.
-
-        Args:
-            callback: The callback to remove
-        """
+        """Unregister a status callback."""
+        if callback in self._callbacks:
+            self._callbacks.remove(callback)
 
     @abstractmethod
     async def start(self) -> None:
@@ -350,46 +347,21 @@ class ScannerAPI(ABC):
         """
 
     @property
-    @abstractmethod
     def is_running(self) -> bool:
         """Check if the scanner is currently running."""
+        return self._running
 
-    @abstractmethod
     def get_devices(self) -> list[ZMKDevice]:
-        """
-        Get list of all discovered ZMK devices.
+        """Get list of all discovered ZMK devices."""
+        return list(self._devices.values())
 
-        Returns:
-            List of ZMKDevice objects for all discovered keyboards
-        """
-
-    @abstractmethod
     def get_device(self, address: str) -> ZMKDevice | None:
-        """
-        Get a specific device by its address.
+        """Get a specific device by its address."""
+        return self._devices.get(address)
 
-        Args:
-            address: The address of the device
-
-        Returns:
-            The ZMKDevice if found, None otherwise
-        """
-
-    @abstractmethod
-    def get_latest_status(self, address: str) -> ZMKStatusAdvertisement | None:
-        """
-        Get the latest status advertisement for a device.
-
-        Args:
-            address: The address of the device
-
-        Returns:
-            The latest ZMKStatusAdvertisement or None if not available
-        """
-
-    @abstractmethod
     def clear_devices(self) -> None:
         """Clear all discovered devices."""
+        self._devices.clear()
 
 
 @dataclass
@@ -412,32 +384,7 @@ class ZMKScanner(ScannerAPI):
     """
 
     _scanner: BleakScanner | None = field(default=None, init=False, repr=False)
-    _devices: dict[str, ZMKDevice] = field(default_factory=dict, init=False)
-    _callbacks: list[StatusCallback] = field(default_factory=list, init=False)
-    _running: bool = field(default=False, init=False)
     _scan_task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
-
-    @override
-    def add_callback(self, callback: StatusCallback) -> None:
-        """
-        Register a callback to receive status updates.
-
-        Args:
-            callback: Function to call when a new status advertisement is received
-        """
-        if callback not in self._callbacks:
-            self._callbacks.append(callback)
-
-    @override
-    def remove_callback(self, callback: StatusCallback) -> None:
-        """
-        Unregister a status callback.
-
-        Args:
-            callback: The callback to remove
-        """
-        if callback in self._callbacks:
-            self._callbacks.remove(callback)
 
     def _detection_callback(self, device: BLEDevice, advertisement_data: AdvertisementData) -> None:
         """Internal callback for BLE advertisement detection."""
@@ -531,69 +478,6 @@ class ZMKScanner(ScannerAPI):
 
         logger.info("ZMK BLE scanner stopped")
 
-    @property
-    @override
-    def is_running(self) -> bool:
-        """Check if the scanner is currently running."""
-        return self._running
-
-    @override
-    def get_devices(self) -> list[ZMKDevice]:
-        """
-        Get list of all discovered ZMK devices.
-
-        Returns:
-            List of ZMKDevice objects for all discovered keyboards
-        """
-        return list(self._devices.values())
-
-    @override
-    def get_device(self, address: str) -> ZMKDevice | None:
-        """
-        Get a specific device by its BLE address.
-
-        Args:
-            address: The BLE address of the device
-
-        Returns:
-            The ZMKDevice if found, None otherwise
-        """
-        return self._devices.get(address)
-
-    def get_device_by_name(self, name: str) -> ZMKDevice | None:
-        """
-        Get a specific device by its name.
-
-        Args:
-            name: The name of the device
-
-        Returns:
-            The first ZMKDevice with a matching name, or None
-        """
-        for device in self._devices.values():
-            if device.name == name:
-                return device
-        return None
-
-    @override
-    def get_latest_status(self, address: str) -> ZMKStatusAdvertisement | None:
-        """
-        Get the latest status advertisement for a device.
-
-        Args:
-            address: The BLE address of the device
-
-        Returns:
-            The latest ZMKStatusAdvertisement or None if not available
-        """
-        device = self._devices.get(address)
-        return device.last_advertisement if device else None
-
-    @override
-    def clear_devices(self) -> None:
-        """Clear all discovered devices."""
-        self._devices.clear()
-
 
 @dataclass
 class SimScanner(ScannerAPI):
@@ -612,9 +496,6 @@ class SimScanner(ScannerAPI):
     _update_interval: float = 3.0
 
     # Internal state
-    _devices: dict[str, ZMKDevice] = field(default_factory=dict, init=False)
-    _callbacks: list[StatusCallback] = field(default_factory=list, init=False)
-    _running: bool = field(default=False, init=False)
     _update_task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
 
     # Simulation state
@@ -627,18 +508,6 @@ class SimScanner(ScannerAPI):
         default_factory=lambda: ["Base", "Nav", "Num", "Combos", "Fun"],
         init=False,
     )
-
-    @override
-    def add_callback(self, callback: StatusCallback) -> None:
-        """Register a callback to receive status updates."""
-        if callback not in self._callbacks:
-            self._callbacks.append(callback)
-
-    @override
-    def remove_callback(self, callback: StatusCallback) -> None:
-        """Unregister a status callback."""
-        if callback in self._callbacks:
-            self._callbacks.remove(callback)
 
     @override
     async def start(self) -> None:
@@ -680,33 +549,6 @@ class SimScanner(ScannerAPI):
             self._update_task = None
 
         logger.debug("SimScanner stopped")
-
-    @property
-    @override
-    def is_running(self) -> bool:
-        """Check if the scanner is currently running."""
-        return self._running
-
-    @override
-    def get_devices(self) -> list[ZMKDevice]:
-        """Get list of all discovered ZMK devices."""
-        return list(self._devices.values())
-
-    @override
-    def get_device(self, address: str) -> ZMKDevice | None:
-        """Get a specific device by its address."""
-        return self._devices.get(address)
-
-    @override
-    def get_latest_status(self, address: str) -> ZMKStatusAdvertisement | None:
-        """Get the latest status advertisement for a device."""
-        device = self._devices.get(address)
-        return device.last_advertisement if device else None
-
-    @override
-    def clear_devices(self) -> None:
-        """Clear all discovered devices."""
-        self._devices.clear()
 
     async def _update_loop(self) -> None:
         """Periodically update the simulated keyboard state and notify callbacks."""
