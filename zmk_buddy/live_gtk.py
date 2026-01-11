@@ -137,8 +137,8 @@ class KeymapWindow(Gtk.ApplicationWindow):
         self.webview.set_vexpand(True)
         self.webview.set_hexpand(True)
 
-        # Make WebKit background transparent
-        self.webview.set_background_color(Gdk.RGBA(red=0.5, green=0.5, blue=0.5, alpha=TRANSPARENCY))
+        # Make WebKit background fully transparent
+        self.webview.set_background_color(Gdk.RGBA(red=0.0, green=0.0, blue=0.0, alpha=0.0))
 
         # Set content
         self.set_child(self.webview)
@@ -160,8 +160,17 @@ class KeymapWindow(Gtk.ApplicationWindow):
         # Request window to stay on top (may not work on all compositors)
         self.set_decorated(True)
 
-        # Enable transparency - requires compositor support
-        # In GTK4, we work with the surface directly after realization
+        # Enable transparency via CSS
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_string(
+            """
+            window {
+                background-color: transparent;
+            }
+            """
+        )
+        # Apply CSS to the window
+        self.get_style_context().add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     def _on_realize(self, widget: Gtk.Widget) -> None:
         """Called when window is realized - start monitors and configure surface."""
@@ -225,6 +234,8 @@ class KeymapWindow(Gtk.ApplicationWindow):
         self._log_svg(svg_string)
 
         # Create HTML wrapper with transparent background and proper scaling
+        # Use TRANSPARENCY constant for the SVG background opacity
+        bg_opacity = TRANSPARENCY
         html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -240,6 +251,8 @@ class KeymapWindow(Gtk.ApplicationWindow):
             max-height: 100vh;
             display: block;
             margin: auto;
+            background-color: rgba(128, 128, 128, {bg_opacity});
+            border-radius: 8px;
         }}
         /* Style for held keys */
         rect.held {{
