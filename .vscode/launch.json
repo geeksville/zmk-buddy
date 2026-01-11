@@ -8,7 +8,9 @@
             "module": "zmk_buddy",
             "args": [
                 "--debug",
-                "--testing"
+                "--testing",
+                "-k", "test/urob/base.yaml",
+                "-z", "corne"
             ],
             "justMyCode": false,
             "console": "integratedTerminal",

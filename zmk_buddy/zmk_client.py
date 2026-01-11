@@ -624,7 +624,7 @@ class SimScanner(ScannerAPI):
 
     # Layer names to cycle through
     LAYER_NAMES: list[str] = field(
-        default_factory=lambda: ["Base", "Nav", "Num", "Sym", "Fun", "Med"],
+        default_factory=lambda: ["Base", "Nav", "Num", "Sym", "Fun"],
         init=False,
     )
 
@@ -668,7 +668,7 @@ class SimScanner(ScannerAPI):
         if not self._running:
             return
 
-        logger.info("Stopping simulated ZMK scanner...")
+        logger.debug("Stopping simulated ZMK scanner...")
         self._running = False
 
         if self._update_task:
@@ -679,7 +679,7 @@ class SimScanner(ScannerAPI):
                 pass
             self._update_task = None
 
-        logger.info("SimScanner stopped")
+        logger.debug("SimScanner stopped")
 
     @property
     @override
