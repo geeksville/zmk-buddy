@@ -13,6 +13,7 @@ from keymap_drawer.config import Config
 
 from zmk_buddy import logger
 from zmk_buddy.live_preflight import has_pyqt6
+from zmk_buddy.zmk_client import ScannerAPI, SimScanner, ZMKScanner
 
 
 def main() -> None:
@@ -64,7 +65,24 @@ def main() -> None:
 
     # Load config from file if specified, otherwise use defaults
     config = Config.model_validate(yaml.safe_load(args.config)) if args.config else Config()
-    live(args, config)
+
+    # Create scanner - use SimScanner in testing mode, ZMKScanner otherwise
+    testing_mode = args.testing
+    scanner: ScannerAPI
+    if testing_mode:
+        logger.info("Testing mode: using simulated ZMK scanner")
+        scanner = SimScanner()
+    else:
+        scanner = ZMKScanner()
+
+    try:
+        # Run the Qt application (this will handle starting/stopping the scanner)
+        live(args, config, scanner)
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user")
+    finally:
+        # Ensure scanner is stopped on exit
+        logger.info("Cleaning up...")
 
 
 if __name__ == "__main__":

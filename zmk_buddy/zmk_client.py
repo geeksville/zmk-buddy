@@ -13,10 +13,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import struct
+import time
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import IntEnum, IntFlag
-from typing import Callable
+from typing import Callable, override
 
 from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
@@ -302,8 +305,95 @@ class ZMKDevice:
 StatusCallback = Callable[[ZMKStatusAdvertisement], None]
 
 
+class ScannerAPI(ABC):
+    """
+    Abstract base class for ZMK keyboard scanners.
+
+    This defines the interface for scanning and receiving status updates
+    from ZMK keyboards. Implementations can use BLE, simulation, or other methods.
+    """
+
+    @abstractmethod
+    def add_callback(self, callback: StatusCallback) -> None:
+        """
+        Register a callback to receive status updates.
+
+        Args:
+            callback: Function to call when a new status advertisement is received
+        """
+
+    @abstractmethod
+    def remove_callback(self, callback: StatusCallback) -> None:
+        """
+        Unregister a status callback.
+
+        Args:
+            callback: The callback to remove
+        """
+
+    @abstractmethod
+    async def start(self) -> None:
+        """
+        Start scanning for ZMK devices.
+
+        This will begin listening for status updates from ZMK keyboards.
+        Discovered devices and their status updates will be provided via
+        registered callbacks.
+        """
+
+    @abstractmethod
+    async def stop(self) -> None:
+        """
+        Stop scanning for ZMK devices.
+
+        Registered callbacks will no longer receive updates until start() is called again.
+        """
+
+    @property
+    @abstractmethod
+    def is_running(self) -> bool:
+        """Check if the scanner is currently running."""
+
+    @abstractmethod
+    def get_devices(self) -> list[ZMKDevice]:
+        """
+        Get list of all discovered ZMK devices.
+
+        Returns:
+            List of ZMKDevice objects for all discovered keyboards
+        """
+
+    @abstractmethod
+    def get_device(self, address: str) -> ZMKDevice | None:
+        """
+        Get a specific device by its address.
+
+        Args:
+            address: The address of the device
+
+        Returns:
+            The ZMKDevice if found, None otherwise
+        """
+
+    @abstractmethod
+    def get_latest_status(self, address: str) -> ZMKStatusAdvertisement | None:
+        """
+        Get the latest status advertisement for a device.
+
+        Args:
+            address: The address of the device
+
+        Returns:
+            The latest ZMKStatusAdvertisement or None if not available
+        """
+
+    @abstractmethod
+    def clear_devices(self) -> None:
+        """Clear all discovered devices."""
+
+
 @dataclass
-class ZMKScanner:
+class ZMKScanner(ScannerAPI):
     """
     BLE scanner for ZMK keyboards with Prospector status advertisement.
 
@@ -325,8 +415,9 @@ class ZMKScanner:
     _devices: dict[str, ZMKDevice] = field(default_factory=dict, init=False)
     _callbacks: list[StatusCallback] = field(default_factory=list, init=False)
     _running: bool = field(default=False, init=False)
-    _scan_task: asyncio.Task | None = field(default=None, init=False, repr=False)
+    _scan_task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
 
+    @override
     def add_callback(self, callback: StatusCallback) -> None:
         """
         Register a callback to receive status updates.
@@ -337,6 +428,7 @@ class ZMKScanner:
         if callback not in self._callbacks:
             self._callbacks.append(callback)
 
+    @override
     def remove_callback(self, callback: StatusCallback) -> None:
         """
         Unregister a status callback.
@@ -366,8 +458,6 @@ class ZMKScanner:
             return
 
         # Update or create device entry
-        import time
-
         now = time.time()
 
         if device.address not in self._devices:
@@ -389,6 +479,7 @@ class ZMKScanner:
             except Exception as e:
                 logger.error(f"Error in status callback: {e}")
 
+    @override
     async def start(self) -> None:
         """
         Start scanning for ZMK devices.
@@ -416,6 +507,7 @@ class ZMKScanner:
             logger.error(f"Failed to start BLE scanner: {e}")
             raise
 
+    @override
     async def stop(self) -> None:
         """
         Stop scanning for ZMK devices.
@@ -440,10 +532,12 @@ class ZMKScanner:
         logger.info("ZMK BLE scanner stopped")
 
     @property
+    @override
     def is_running(self) -> bool:
         """Check if the scanner is currently running."""
         return self._running
 
+    @override
     def get_devices(self) -> list[ZMKDevice]:
         """
         Get list of all discovered ZMK devices.
@@ -453,6 +547,7 @@ class ZMKScanner:
         """
         return list(self._devices.values())
 
+    @override
     def get_device(self, address: str) -> ZMKDevice | None:
         """
         Get a specific device by its BLE address.
@@ -480,6 +575,7 @@ class ZMKScanner:
                 return device
         return None
 
+    @override
     def get_latest_status(self, address: str) -> ZMKStatusAdvertisement | None:
         """
         Get the latest status advertisement for a device.
@@ -493,9 +589,205 @@ class ZMKScanner:
         device = self._devices.get(address)
         return device.last_advertisement if device else None
 
+    @override
     def clear_devices(self) -> None:
         """Clear all discovered devices."""
         self._devices.clear()
+
+
+@dataclass
+class SimScanner(ScannerAPI):
+    """
+    Simulated scanner for testing purposes.
+
+    This scanner pretends to see a single keyboard whose modifier keys,
+    battery levels, and layer names change every few seconds.
+    """
+
+    # Simulated device address
+    SIM_DEVICE_ADDRESS: str = field(default="SIM:00:00:00:00:01", init=False)
+    SIM_DEVICE_NAME: str = field(default="Simulated ZMK Keyboard", init=False)
+
+    # Update interval in seconds
+    _update_interval: float = 3.0
+
+    # Internal state
+    _devices: dict[str, ZMKDevice] = field(default_factory=dict, init=False)
+    _callbacks: list[StatusCallback] = field(default_factory=list, init=False)
+    _running: bool = field(default=False, init=False)
+    _update_task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
+
+    # Simulation state
+    _current_layer_index: int = field(default=0, init=False)
+    _current_battery: int = field(default=85, init=False)
+    _current_modifiers: ModifierFlags = field(default=ModifierFlags(0), init=False)
+
+    # Layer names to cycle through
+    LAYER_NAMES: list[str] = field(
+        default_factory=lambda: ["Base", "Nav", "Num", "Sym", "Fun", "Med"],
+        init=False,
+    )
+
+    @override
+    def add_callback(self, callback: StatusCallback) -> None:
+        """Register a callback to receive status updates."""
+        if callback not in self._callbacks:
+            self._callbacks.append(callback)
+
+    @override
+    def remove_callback(self, callback: StatusCallback) -> None:
+        """Unregister a status callback."""
+        if callback in self._callbacks:
+            self._callbacks.remove(callback)
+
+    @override
+    async def start(self) -> None:
+        """Start the simulated scanner."""
+        if self._running:
+            logger.warning("SimScanner is already running")
+            return
+
+        logger.info("Starting simulated ZMK scanner...")
+        self._running = True
+
+        # Create the simulated device
+        self._devices[self.SIM_DEVICE_ADDRESS] = ZMKDevice(
+            address=self.SIM_DEVICE_ADDRESS,
+            name=self.SIM_DEVICE_NAME,
+            keyboard_id=0x12345678,
+        )
+        logger.info(f"Simulated device created: {self.SIM_DEVICE_NAME}")
+
+        # Start the update loop
+        self._update_task = asyncio.create_task(self._update_loop())
+        logger.info("SimScanner started successfully")
+
+    @override
+    async def stop(self) -> None:
+        """Stop the simulated scanner."""
+        if not self._running:
+            return
+
+        logger.info("Stopping simulated ZMK scanner...")
+        self._running = False
+
+        if self._update_task:
+            self._update_task.cancel()
+            try:
+                await self._update_task
+            except asyncio.CancelledError:
+                pass
+            self._update_task = None
+
+        logger.info("SimScanner stopped")
+
+    @property
+    @override
+    def is_running(self) -> bool:
+        """Check if the scanner is currently running."""
+        return self._running
+
+    @override
+    def get_devices(self) -> list[ZMKDevice]:
+        """Get list of all discovered ZMK devices."""
+        return list(self._devices.values())
+
+    @override
+    def get_device(self, address: str) -> ZMKDevice | None:
+        """Get a specific device by its address."""
+        return self._devices.get(address)
+
+    @override
+    def get_latest_status(self, address: str) -> ZMKStatusAdvertisement | None:
+        """Get the latest status advertisement for a device."""
+        device = self._devices.get(address)
+        return device.last_advertisement if device else None
+
+    @override
+    def clear_devices(self) -> None:
+        """Clear all discovered devices."""
+        self._devices.clear()
+
+    async def _update_loop(self) -> None:
+        """Periodically update the simulated keyboard state and notify callbacks."""
+        while self._running:
+            try:
+                await asyncio.sleep(self._update_interval)
+
+                if not self._running:
+                    break
+
+                # Update simulation state
+                self._cycle_state()
+
+                # Create a new status advertisement
+                status = self._create_status()
+
+                # Update the device's last advertisement
+                device = self._devices.get(self.SIM_DEVICE_ADDRESS)
+                if device:
+                    device.last_advertisement = status
+                    device.last_seen = time.time()
+
+                # Notify callbacks
+                for callback in self._callbacks:
+                    try:
+                        callback(status)
+                    except Exception as e:
+                        logger.error(f"Error in status callback: {e}")
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in SimScanner update loop: {e}")
+
+    def _cycle_state(self) -> None:
+        """Cycle through different states for simulation."""
+        # Cycle layer every update
+        self._current_layer_index = (self._current_layer_index + 1) % len(self.LAYER_NAMES)
+
+        # Randomly adjust battery (slowly drain or charge)
+        battery_change = random.randint(-2, 1)
+        self._current_battery = max(10, min(100, self._current_battery + battery_change))
+
+        # Randomly toggle modifiers
+        modifier_options = [
+            ModifierFlags(0),  # No modifiers
+            ModifierFlags.LSFT,  # Left Shift
+            ModifierFlags.LCTL,  # Left Control
+            ModifierFlags.LALT,  # Left Alt
+            ModifierFlags.LGUI,  # Left GUI
+            ModifierFlags.LSFT | ModifierFlags.LCTL,  # Shift + Ctrl
+            ModifierFlags.LCTL | ModifierFlags.LALT,  # Ctrl + Alt
+            ModifierFlags.RSFT,  # Right Shift
+        ]
+        self._current_modifiers = random.choice(modifier_options)
+
+    def _create_status(self) -> ZMKStatusAdvertisement:
+        """Create a simulated status advertisement with current state."""
+        layer_name = self.LAYER_NAMES[self._current_layer_index]
+
+        return ZMKStatusAdvertisement(
+            manufacturer_id=MANUFACTURER_ID,
+            service_uuid=PROSPECTOR_SERVICE_UUID,
+            version=1,
+            battery_level=self._current_battery,
+            active_layer=self._current_layer_index,
+            profile_slot=0,
+            connection_count=1,
+            status_flags=StatusFlags.BLE_CONNECTED | StatusFlags.BLE_BONDED,
+            device_role=DeviceRole.STANDALONE,
+            device_index=0,
+            peripheral_batteries=(self._current_battery - 5, self._current_battery - 3, 0),
+            layer_name=layer_name[:4],  # Truncate to 4 chars like real protocol
+            keyboard_id=0x12345678,
+            modifier_flags=self._current_modifiers,
+            wpm_value=random.randint(0, 80),
+            channel=0,
+            rssi=-50,
+            device_address=self.SIM_DEVICE_ADDRESS,
+            device_name=self.SIM_DEVICE_NAME,
+        )
 
 
 # Convenience functions for simple usage

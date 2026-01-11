@@ -4,6 +4,7 @@ This module provides the main GUI application for displaying keyboard layouts
 and tracking keypresses in real-time.
 """
 
+import asyncio
 import logging
 import platform
 import sys
@@ -12,7 +13,7 @@ from datetime import datetime
 from io import StringIO
 from pathlib import Path
 from threading import Thread
-from typing import override
+from typing import TYPE_CHECKING, override
 import xml.etree.ElementTree as ET
 
 import yaml
@@ -26,6 +27,9 @@ from keymap_drawer.config import Config
 from keymap_drawer.draw import KeymapDrawer
 
 from zmk_buddy.learning import LearningTracker
+
+if TYPE_CHECKING:
+    from zmk_buddy.zmk_client import ScannerAPI
 
 logger = logging.getLogger(__name__)
 
@@ -591,10 +595,20 @@ class KeymapWindow(QMainWindow):
     layer_names: list[str]
     current_layer_index: int
     learning_tracker: LearningTracker
+    zmk_scanner: "ScannerAPI | None"
+    scanner_thread: Thread | None
+    scanner_loop: asyncio.AbstractEventLoop | None
 
-    def __init__(self, yaml_data: dict, config: Config, testing_mode: bool = False):
+    def __init__(
+        self, yaml_data: dict, config: Config, testing_mode: bool = False, zmk_scanner: "ScannerAPI | None" = None
+    ):
         super().__init__()
         self.setWindowTitle("Keymap Drawer - Live View")
+
+        # Store ZMK scanner reference
+        self.zmk_scanner = zmk_scanner
+        self.scanner_thread = None
+        self.scanner_loop = None
 
         # Initialize learning tracker
         self.learning_tracker = LearningTracker(testing_mode=testing_mode)
@@ -717,6 +731,10 @@ class KeymapWindow(QMainWindow):
         # Log learning progress
         logger.info(f"Learning: {self.learning_tracker.get_summary()}")
 
+        # Start ZMK scanner if provided
+        if self.zmk_scanner is not None and self.scanner_thread is None:
+            self._start_zmk_scanner()
+
         # Try to start global keyboard monitoring
         if evdev_available:
             self.keyboard_monitor = KeyboardMonitor()
@@ -728,6 +746,50 @@ class KeymapWindow(QMainWindow):
             logger.warning(
                 "Global monitoring unavailable - window must be focused to capture keys (YOU PROBABLY DON'T WANT THIS)"
             )
+
+    def _start_zmk_scanner(self) -> None:
+        """Start the ZMK scanner in a background thread."""
+        if self.zmk_scanner is None:
+            return
+
+        def run_scanner():
+            """Run the scanner in an asyncio event loop."""
+            self.scanner_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.scanner_loop)
+            try:
+                self.scanner_loop.run_until_complete(self.zmk_scanner.start())
+                # Keep the loop running
+                self.scanner_loop.run_forever()
+            except Exception as e:
+                logger.error(f"Error in ZMK scanner thread: {e}")
+            finally:
+                self.scanner_loop.close()
+
+        self.scanner_thread = Thread(target=run_scanner, daemon=True)
+        self.scanner_thread.start()
+        logger.info("ZMK BLE scanner started in background thread")
+
+    def _stop_zmk_scanner(self) -> None:
+        """Stop the ZMK scanner and clean up the background thread."""
+        if self.zmk_scanner is None or self.scanner_loop is None:
+            return
+
+        try:
+            # Schedule the stop coroutine in the scanner's event loop
+            asyncio.run_coroutine_threadsafe(self.zmk_scanner.stop(), self.scanner_loop)
+            # Stop the event loop
+            self.scanner_loop.call_soon_threadsafe(self.scanner_loop.stop)
+
+            # Wait for thread to finish (with timeout)
+            if self.scanner_thread is not None:
+                self.scanner_thread.join(timeout=2.0)
+
+            logger.info("ZMK BLE scanner stopped")
+        except Exception as e:
+            logger.error(f"Error stopping ZMK scanner: {e}")
+        finally:
+            self.scanner_thread = None
+            self.scanner_loop = None
 
     def on_global_key_press(self, key_char: str) -> None:
         """Handle global key press from keyboard monitor"""
@@ -792,6 +854,12 @@ class KeymapWindow(QMainWindow):
     def closeEvent(self, a0: QCloseEvent) -> None:
         """Clean up when window is closed"""
         self.hide_timer.stop()
+
+        # Stop ZMK scanner
+        if self.zmk_scanner is not None:
+            self._stop_zmk_scanner()
+
+        # Stop keyboard monitor
         if self.keyboard_monitor:
             self.keyboard_monitor.stop()
 
@@ -908,7 +976,9 @@ def render_svg(yaml_data: dict, config: Config, layer_name: str | None = None) -
     return svg_content
 
 
-def live(args: Namespace, config: Config) -> None:  # pylint: disable=unused-argument
+def live(
+    args: Namespace, config: Config, scanner: "ScannerAPI | None" = None
+) -> None:  # pylint: disable=unused-argument
     """Show a live view of keypresses"""
     # Customize layer label styling by creating a new DrawConfig with modified svg_extra_style
     custom_draw_config = config.draw_config.model_copy(
@@ -963,7 +1033,7 @@ def live(args: Namespace, config: Config) -> None:  # pylint: disable=unused-arg
 
     # Create and show the window
     testing_mode = hasattr(args, "testing") and args.testing
-    window = KeymapWindow(yaml_data, config, testing_mode=testing_mode)
+    window = KeymapWindow(yaml_data, config, testing_mode=testing_mode, zmk_scanner=scanner)
     window.show()
 
     logger.info("Starting Qt event loop...")
