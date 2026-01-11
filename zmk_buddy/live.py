@@ -22,7 +22,7 @@ import yaml
 
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QGraphicsOpacityEffect
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtGui import QCloseEvent, QKeyEvent, QPainter, QShowEvent, QPaintEvent, QColor, QMouseEvent
+from PySide6.QtGui import QCloseEvent, QKeyEvent, QPainter, QShowEvent, QPaintEvent, QColor, QMouseEvent, QIcon, QPixmap
 from PySide6.QtCore import QSize, Qt, QPoint, QTimer, Signal
 
 from keymap_drawer.config import Config
@@ -72,6 +72,25 @@ def create_keyboard_monitor() -> KeyboardMonitorBase | None:
 
     logger.error("No keyboard monitoring backend available!")
     return None
+
+
+def create_icon() -> QIcon:
+    """
+    Create a ZMK logo icon for the window titlebar.
+
+    Returns:
+        A QIcon containing the ZMK logo, or a fallback icon if loading fails
+    """
+    # Load the ZMK logo from local assets
+    logo_path = Path(__file__).parent / "assets" / "zmk-logo.png"
+
+    pixmap = QPixmap(str(logo_path))
+    assert not pixmap.isNull()
+
+    # Scale to appropriate titlebar size if needed
+    if pixmap.width() > 32 or pixmap.height() > 32:
+        pixmap = pixmap.scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    return QIcon(pixmap)
 
 
 # Window visibility timeout in seconds
@@ -391,7 +410,10 @@ class KeymapWindow(QMainWindow):
         self, yaml_data: dict, config: Config, testing_mode: bool = False, zmk_scanner: "ScannerAPI | None" = None
     ):
         super().__init__()
-        self.setWindowTitle("Keymap Drawer - Live View")
+        self.setWindowTitle("ZMK Buddy")
+
+        # Set window icon
+        self.setWindowIcon(create_icon())
 
         # Store ZMK scanner reference
         self.zmk_scanner = zmk_scanner
