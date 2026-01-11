@@ -428,7 +428,7 @@ class KeymapWindow(Gtk.ApplicationWindow):
             GLib.source_remove(self.hide_timer_id)
             self.hide_timer_id = None
 
-        self.set_opacity(1.0)
+        self.show()
         self.present()
 
     def _start_hide_timer(self) -> None:
@@ -439,9 +439,9 @@ class KeymapWindow(Gtk.ApplicationWindow):
         self.hide_timer_id = GLib.timeout_add(int(KEYPRESS_VIEW_SECS * 1000), self._on_hide_timeout)
 
     def _on_hide_timeout(self) -> bool:
-        """Fade out window when timer expires."""
+        """Hide window when timer expires."""
         if not self.held_keys:
-            self.set_opacity(0.0)
+            self.hide()
         self.hide_timer_id = None
         return False  # Don't repeat
 

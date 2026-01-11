@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "ZMK Buddy: Run with Debug",
+            "name": "ZMK Buddy: Run in Test mode",
             "type": "debugpy",
             "request": "launch",
             "module": "zmk_buddy",
@@ -19,20 +19,20 @@
             }
         },
         {
-            "name": "ZMK Buddy: Run with Keymap",
+            "name": "ZMK Buddy: Run with Debug",
             "type": "debugpy",
             "request": "launch",
             "module": "zmk_buddy",
             "args": [
                 "--debug",
-                "--keymap",
-                "${workspaceFolder}/zmk_buddy/data/keymaps/miryoku.yaml"
+                "-k", "test/urob/base.yaml",
+                "-z", "corne"
             ],
             "justMyCode": false,
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
-        }
+        },
     ]
 }
