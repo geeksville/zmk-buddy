@@ -89,14 +89,14 @@ class PynputKeyboardMonitor(KeyboardMonitorBase):
                 return False  # Stop listener
             key_char = self._pynput_key_to_char(key)
             if key_char and (len(key_char) == 1 or key_char in PYNPUT_KEY_MAP.values()):
-                self.key_pressed.emit(key_char)
+                self.emit_key_pressed(key_char)
 
         def on_release(key):
             if self.stop_flag:
                 return False  # Stop listener
             key_char = self._pynput_key_to_char(key)
             if key_char and (len(key_char) == 1 or key_char in PYNPUT_KEY_MAP.values()):
-                self.key_released.emit(key_char)
+                self.emit_key_released(key_char)
 
         self._pynput_listener = pynput_keyboard.Listener(on_press=on_press, on_release=on_release)
         self._pynput_listener.start()

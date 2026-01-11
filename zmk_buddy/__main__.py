@@ -12,7 +12,7 @@ import yaml
 from keymap_drawer.config import Config
 
 from zmk_buddy import logger
-from zmk_buddy.live_preflight import has_pyqt6
+from zmk_buddy.live_preflight import has_gtk
 from zmk_buddy.zmk_client import ScannerAPI, SimScanner, ZMKScanner
 
 
@@ -53,15 +53,15 @@ def main() -> None:
     else:
         logger.setLevel(logging.INFO)
 
-    # Check for PySide6 availability
-    if not has_pyqt6():
-        print("Error: PySide6 is not available.", file=sys.stderr)
+    # Check for GTK availability
+    if not has_gtk():
+        print("Error: PyGObject/GTK4 is not available.", file=sys.stderr)
         print("Please install zmk-buddy with all dependencies:", file=sys.stderr)
         print("  pip install zmk-buddy", file=sys.stderr)
         sys.exit(1)
 
     # Import and run live view
-    from zmk_buddy.live import live
+    from zmk_buddy.live_gtk import live
 
     # Load config from file if specified, otherwise use defaults
     config = Config.model_validate(yaml.safe_load(args.config)) if args.config else Config()
@@ -76,7 +76,7 @@ def main() -> None:
         scanner = ZMKScanner()
 
     try:
-        # Run the Qt application (this will handle starting/stopping the scanner)
+        # Run the GTK application (this will handle starting/stopping the scanner)
         live(args, config, scanner)
     except KeyboardInterrupt:
         logger.info("Interrupted by user")

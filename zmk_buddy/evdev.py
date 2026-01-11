@@ -5,14 +5,11 @@ This module provides global keyboard monitoring using the evdev library,
 which directly accesses Linux input devices for reliable key event capture.
 """
 
-from evdev.device import InputDevice
-
-
 import logging
 import select
 import time
 from threading import Thread
-from typing import Any, override
+from typing import override
 
 from zmk_buddy.keyboard_monitor_base import KeyboardMonitorBase
 
@@ -136,9 +133,9 @@ class EvdevKeyboardMonitor(KeyboardMonitorBase):
                                             # Only handle single characters or mapped special keys
                                             if len(key_char) == 1 or key_name in EVDEV_KEY_MAP:
                                                 if key_event.keystate == key_event.key_down:
-                                                    self.key_pressed.emit(key_char)
+                                                    self.emit_key_pressed(key_char)
                                                 elif key_event.keystate == key_event.key_up:
-                                                    self.key_released.emit(key_char)
+                                                    self.emit_key_released(key_char)
                             except (OSError, IOError) as e:
                                 logger.warning(f"Error reading from {device.name}: {e}")
                                 raise
