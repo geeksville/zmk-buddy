@@ -15,6 +15,10 @@ test-layout:
     # poetry run zmk-buddy -c test/urob/config.yaml -k test/urob/base.yaml -d -z ferris/sweep
     poetry run zmk-buddy -k test/urob/base.yaml -d -z corne
 
+# Just run with my keyboard config
+run: 
+    zmk-buddy -k test/urob/base.yaml -z corne
+
 # Use pip to install the PyPI released version of keymap-drawer
 keymap-use-release:
     @echo "Switching to PyPI release version of keymap-drawer..."
