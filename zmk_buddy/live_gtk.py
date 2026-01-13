@@ -159,6 +159,9 @@ class KeymapWindow(Gtk.ApplicationWindow):
         """Configure window for transparency and always-on-top behavior."""
         # Request window to stay on top (may not work on all compositors)
         self.set_decorated(True)
+        
+        # Prevent window from accepting keyboard focus
+        self.set_can_focus(False)
 
         # Enable transparency via CSS
         css_provider = Gtk.CssProvider()
@@ -457,9 +460,9 @@ class KeymapWindow(Gtk.ApplicationWindow):
             GLib.source_remove(self.hide_timer_id)
             self.hide_timer_id = None
 
-        # Unminimize if minimized
+        # Unminimize and show without stealing focus
         self.unminimize()
-        self.present()
+        self.set_visible(True)
 
     def _start_hide_timer(self) -> None:
         """Start timer to fade out window after inactivity."""
