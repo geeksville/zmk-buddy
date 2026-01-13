@@ -34,5 +34,21 @@
                 "PYTHONPATH": "${workspaceFolder}"
             }
         },
+
+        {
+            "name": "ZMK Buddy: Run no Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "zmk_buddy",
+            "args": [
+                "-k", "test/urob/base.yaml",
+                "-z", "corne"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },        
     ]
 }

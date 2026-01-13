@@ -151,7 +151,7 @@ class KeymapWindow(Gtk.ApplicationWindow):
         self.connect("realize", self._on_realize)
 
         # Set initial size based on SVG
-        self.set_default_size(600, 400)
+        self.set_default_size(800, 400)
 
         logger.info("Press 'y' to cycle layers, 'x' to exit.")
 
@@ -380,12 +380,29 @@ class KeymapWindow(Gtk.ApplicationWindow):
         logger.info(f"Switching to layer: {self.layer_names[self.current_layer_index]}")
         self._refresh_layer_display()
 
-    def set_layer(self, name: str) -> None:
-        """Switch to a specific layer by name."""
+    def set_layer(self, name: str | int) -> None:
+        """Switch to a specific layer by name or index.
+        
+        Args:
+            name: Either a layer name (str) or layer index (int)
+        """
         if not self.layer_names:
             logger.warning(f"Cannot set layer '{name}': no layers defined")
             return
 
+        # Handle integer index
+        if isinstance(name, int):
+            if 0 <= name < len(self.layer_names):
+                if name != self.current_layer_index:
+                    self.current_layer_index = name
+                    logger.info(f"Switching to layer: {self.layer_names[name]}")
+                    self._refresh_layer_display()
+                return
+            else:
+                logger.warning(f"Layer index {name} out of range (0-{len(self.layer_names)-1})")
+                return
+
+        # Handle string name
         name_lower = name.lower()
         for i, layer_name in enumerate(self.layer_names):
             if layer_name.lower() == name_lower:
@@ -511,12 +528,9 @@ class KeymapWindow(Gtk.ApplicationWindow):
 
     def _on_zmk_status(self, status: "ZMKStatusAdvertisement") -> None:
         """Handle status updates from ZMK scanner (thread-safe)."""
-        layer_name = status.layer_name.strip()
-        if layer_name:
-            logger.debug(f"ZMK status received: requesting layer change to '{layer_name}'")
-            GLib.idle_add(self.set_layer, layer_name)
-        else:
-            logger.debug("ZMK status received: empty layer name, ignoring")
+        layer_index = status.active_layer
+        logger.debug(f"ZMK status received: requesting layer change to index {layer_index}")
+        GLib.idle_add(self.set_layer, layer_index)
 
     def _on_close_request(self, window: Gtk.Window) -> bool:
         """Clean up when window is closed."""
