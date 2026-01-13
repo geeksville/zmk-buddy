@@ -69,31 +69,29 @@ class DeviceRole(IntEnum):
 @dataclass
 class ZMKStatusAdvertisement:
     """
-    Parsed ZMK status advertisement data (26 bytes).
+    Parsed ZMK status advertisement data (24 bytes).
 
     BLE Advertisement Format:
     | Offset | Field | Size | Description |
     |--------|-------|------|-------------|
-    | 0-1 | Manufacturer ID | 2 bytes | 0xFF 0xFF (Custom/Local use) |
-    | 2-3 | Service UUID | 2 bytes | 0xAB 0xCD (Prospector Protocol ID) |
-    | 4 | Protocol Version | 1 byte | Protocol version (current: 0x01) |
-    | 5 | Battery Level | 1 byte | Main battery 0-100% |
-    | 6 | Active Layer | 1 byte | Current layer 0-15 |
-    | 7 | Profile Slot | 1 byte | BLE profile 0-4 |
-    | 8 | Connection Count | 1 byte | Number of connected BLE devices 0-5 |
-    | 9 | Status Flags | 1 byte | USB/BLE/Charging/Caps Lock bits |
-    | 10 | Device Role | 1 byte | 0=Standalone, 1=Central, 2=Peripheral |
-    | 11 | Device Index | 1 byte | Split keyboard index (0=left, 1=right) |
-    | 12-14 | Peripheral Batteries | 3 bytes | Left/Right/Aux battery levels |
-    | 15-18 | Layer Name | 4 bytes | ASCII layer identifier |
-    | 19-22 | Keyboard ID | 4 bytes | Hash of keyboard name |
-    | 23 | Modifier Flags | 1 byte | L/R Ctrl,Shift,Alt,GUI states |
-    | 24 | WPM Value | 1 byte | Words per minute 0-255 |
-    | 25 | Channel | 1 byte | Channel number 0-255 |
+    | 0-1 | Service UUID | 2 bytes | 0xAB 0xCD (Prospector Protocol ID) |
+    | 2 | Protocol Version | 1 byte | Protocol version (current: 0x01) |
+    | 3 | Battery Level | 1 byte | Main battery 0-100% |
+    | 4 | Active Layer | 1 byte | Current layer 0-15 |
+    | 5 | Profile Slot | 1 byte | BLE profile 0-4 |
+    | 6 | Connection Count | 1 byte | Number of connected BLE devices 0-5 |
+    | 7 | Status Flags | 1 byte | USB/BLE/Charging/Caps Lock bits |
+    | 8 | Device Role | 1 byte | 0=Standalone, 1=Central, 2=Peripheral |
+    | 9 | Device Index | 1 byte | Split keyboard index (0=left, 1=right) |
+    | 10-12 | Peripheral Batteries | 3 bytes | Left/Right/Aux battery levels |
+    | 13-16 | Layer Name | 4 bytes | ASCII layer identifier |
+    | 17-20 | Keyboard ID | 4 bytes | Hash of keyboard name |
+    | 21 | Modifier Flags | 1 byte | L/R Ctrl,Shift,Alt,GUI states |
+    | 22 | WPM Value | 1 byte | Words per minute 0-255 |
+    | 23 | Channel | 1 byte | Channel number 0-255 |
     """
 
     # Header fields
-    manufacturer_id: int
     service_uuid: bytes
     version: int
 
@@ -132,10 +130,10 @@ class ZMKStatusAdvertisement:
         device_name: str = "",
     ) -> ZMKStatusAdvertisement | None:
         """
-        Parse a 26-byte manufacturer data payload into a ZMKStatusAdvertisement.
+        Parse a 24-byte manufacturer data payload into a ZMKStatusAdvertisement.
 
         Args:
-            data: The 26-byte manufacturer data payload
+            data: The 24-byte manufacturer data payload
             rssi: Signal strength in dBm
             device_address: BLE device address
             device_name: Device name from scan response
@@ -143,42 +141,41 @@ class ZMKStatusAdvertisement:
         Returns:
             Parsed ZMKStatusAdvertisement or None if parsing fails
         """
-        if len(data) != 26:
-            logger.debug(f"Invalid payload length: {len(data)} (expected 26)")
-            return None
-
-        # Check service UUID (bytes 2-3 should be 0xAB 0xCD)
-        if data[2:4] != PROSPECTOR_SERVICE_UUID:
-            logger.debug(f"Invalid service UUID: {data[2:4].hex()}")
+        if len(data) != 24:
+            logger.debug(f"Invalid payload length: {len(data)} (expected 24)")
             return None
 
         try:
             # Parse the structure
-            manufacturer_id = struct.unpack("<H", data[0:2])[0]
-            service_uuid = data[2:4]
-            version = data[4]
-            battery_level = data[5]
-            active_layer = data[6]
-            profile_slot = data[7]
-            connection_count = data[8]
-            status_flags = StatusFlags(data[9])
-            device_role = DeviceRole(data[10])
-            device_index = data[11]
-            peripheral_batteries = (data[12], data[13], data[14])
+            service_uuid = data[0:2]
+
+            # Check service UUID (bytes 0-1 should be 0xAB 0xCD)
+            if service_uuid != PROSPECTOR_SERVICE_UUID:
+                logger.debug(f"Invalid service UUID: {data[0:2].hex()}")
+                return None
+
+            version = data[2]
+            battery_level = data[3]
+            active_layer = data[4]
+            profile_slot = data[5]
+            connection_count = data[6]
+            status_flags = StatusFlags(data[7])
+            device_role = DeviceRole(data[8])
+            device_index = data[9]
+            peripheral_batteries = (data[10], data[11], data[12])
 
             # Layer name is 4 bytes, null-terminated
-            layer_name_bytes = data[15:19]
+            layer_name_bytes = data[13:17]
             layer_name = layer_name_bytes.rstrip(b"\x00").decode("ascii", errors="replace")
 
             # Keyboard ID is a 4-byte hash
-            keyboard_id = struct.unpack("<I", data[19:23])[0]
+            keyboard_id = struct.unpack("<I", data[17:21])[0]
 
-            modifier_flags = ModifierFlags(data[23])
-            wpm_value = data[24]
-            channel = data[25]
+            modifier_flags = ModifierFlags(data[21])
+            wpm_value = data[22]
+            channel = data[23]
 
             return cls(
-                manufacturer_id=manufacturer_id,
                 service_uuid=service_uuid,
                 version=version,
                 battery_level=battery_level,
@@ -610,7 +607,6 @@ class SimScanner(ScannerAPI):
         layer_name = self.LAYER_NAMES[self._current_layer_index]
 
         return ZMKStatusAdvertisement(
-            manufacturer_id=MANUFACTURER_ID,
             service_uuid=PROSPECTOR_SERVICE_UUID,
             version=1,
             battery_level=self._current_battery,
@@ -630,60 +626,3 @@ class SimScanner(ScannerAPI):
             device_address=self.SIM_DEVICE_ADDRESS,
             device_name=self.SIM_DEVICE_NAME,
         )
-
-
-# Convenience functions for simple usage
-
-
-async def scan_for_devices(timeout: float = 5.0) -> list[ZMKDevice]:
-    """
-    Scan for ZMK devices for a specified duration.
-
-    This is a convenience function for one-shot scanning.
-
-    Args:
-        timeout: How long to scan in seconds
-
-    Returns:
-        List of discovered ZMKDevice objects
-    """
-    scanner = ZMKScanner()
-    await scanner.start()
-    await asyncio.sleep(timeout)
-    await scanner.stop()
-    return scanner.get_devices()
-
-
-async def get_first_device(timeout: float = 10.0) -> ZMKDevice | None:
-    """
-    Scan until the first ZMK device is found or timeout.
-
-    Args:
-        timeout: Maximum time to wait in seconds
-
-    Returns:
-        The first discovered ZMKDevice or None if timeout
-    """
-    scanner = ZMKScanner()
-    found_event = asyncio.Event()
-    found_device: list[ZMKDevice] = []
-
-    def on_status(status: ZMKStatusAdvertisement) -> None:
-        if not found_device:
-            device = scanner.get_device(status.device_address)
-            if device:
-                found_device.append(device)
-                found_event.set()
-
-    scanner.add_callback(on_status)
-
-    try:
-        await scanner.start()
-        try:
-            await asyncio.wait_for(found_event.wait(), timeout=timeout)
-        except asyncio.TimeoutError:
-            pass
-    finally:
-        await scanner.stop()
-
-    return found_device[0] if found_device else None
