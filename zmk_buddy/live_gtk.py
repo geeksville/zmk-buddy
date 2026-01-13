@@ -106,6 +106,7 @@ class KeymapWindow(Gtk.ApplicationWindow):
         # Store references
         self.yaml_data = yaml_data
         self.config = config
+        self.testing_mode = testing_mode
         self.zmk_scanner = zmk_scanner
         self.scanner_thread: Thread | None = None
         self.scanner_loop: asyncio.AbstractEventLoop | None = None
@@ -153,13 +154,11 @@ class KeymapWindow(Gtk.ApplicationWindow):
         # Set initial size based on SVG
         self.set_default_size(800, 400)
 
-        logger.info("Press 'y' to cycle layers, 'x' to exit.")
-
     def _setup_window_properties(self) -> None:
         """Configure window for transparency and always-on-top behavior."""
         # Request window to stay on top (may not work on all compositors)
         self.set_decorated(True)
-        
+
         # Prevent window from accepting keyboard focus
         self.set_can_focus(False)
 
@@ -385,7 +384,7 @@ class KeymapWindow(Gtk.ApplicationWindow):
 
     def set_layer(self, name: str | int) -> None:
         """Switch to a specific layer by name or index.
-        
+
         Args:
             name: Either a layer name (str) or layer index (int)
         """
@@ -400,10 +399,10 @@ class KeymapWindow(Gtk.ApplicationWindow):
                     self.current_layer_index = name
                     logger.info(f"Switching to layer: {self.layer_names[name]}")
                     self._refresh_layer_display()
-                return
             else:
                 logger.warning(f"Layer index {name} out of range (0-{len(self.layer_names)-1})")
-                return
+
+            return
 
         # Handle string name
         name_lower = name.lower()
@@ -419,15 +418,16 @@ class KeymapWindow(Gtk.ApplicationWindow):
 
     def _on_key_pressed(self, monitor: KeyboardMonitorBase, key_char: str) -> None:
         """Handle global key press."""
-        # Special keys for testing
-        if key_char.lower() == "x":
-            logger.info("Exiting...")
-            self.close()
-            return
+        # Special keys for testing (only in testing mode)
+        if self.testing_mode:
+            if key_char.lower() == "x":
+                logger.info("Exiting...")
+                self.close()
+                return
 
-        if key_char.lower() == "y":
-            self.next_layer()
-            return
+            if key_char.lower() == "y":
+                self.next_layer()
+                return
 
         # Track for learning
         self.learning_tracker.on_key_press(key_char)
